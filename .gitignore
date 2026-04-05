@@ -1,0 +1,6 @@
+memo/
+.*/
+!.gitignore
+__pycache__
+AGENTS.md*.DS_Store
+amp
