@@ -9,12 +9,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-import aiofiles
+import aiofiles  # type: ignore[import-untyped]
 
 
 def to_primitive(value: Any) -> Any:
     if is_dataclass(value):
-        return {key: to_primitive(item) for key, item in asdict(value).items()}
+        return {key: to_primitive(item) for key, item in asdict(value).items()}  # type: ignore[arg-type]
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, datetime):

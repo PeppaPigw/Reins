@@ -9,7 +9,6 @@ Does the reducer avoid I/O imports?
 from __future__ import annotations
 
 import ast
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 

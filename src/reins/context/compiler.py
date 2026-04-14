@@ -93,6 +93,14 @@ class ContextCompiler:
         snap_text = f"Run: {run_id}\nStatus: {snapshot.get('run_phase', '?')}"
         if snapshot.get("pending_approvals"):
             snap_text += f"\nPending approvals: {snapshot['pending_approvals']}"
+        if snapshot.get("repairing_command_id"):
+            snap_text += f"\nRepairing command: {snapshot['repairing_command_id']}"
+        if snapshot.get("last_completed_repair"):
+            repair = snapshot["last_completed_repair"]
+            snap_text += (
+                f"\nLast completed repair: {repair.get('failure_class', '?')} "
+                f"via {repair.get('command_id', '?')}"
+            )
         shards.append(ContextShard(
             tier="B", source="snapshot", content=snap_text,
             token_estimate=_estimate_tokens(snap_text), priority=90.0,
@@ -109,6 +117,12 @@ class ContextCompiler:
         # Eval failures (most recent N)
         for fail in eval_failures[:3]:
             text = f"Eval failure [{fail.get('failure_class', '?')}]: {fail.get('details', '')}"
+            if fail.get("repair_route"):
+                text += f"\nRepair route: {fail['repair_route']}"
+            if "retry_allowed" in fail:
+                text += f"\nRetry allowed: {fail['retry_allowed']}"
+            if fail.get("repair_hints"):
+                text += f"\nRepair hints: {', '.join(fail['repair_hints'])}"
             shards.append(ContextShard(
                 tier="B", source="eval_failure", content=text,
                 token_estimate=_estimate_tokens(text), priority=88.0,

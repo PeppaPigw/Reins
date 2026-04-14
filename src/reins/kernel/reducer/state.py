@@ -5,6 +5,24 @@ from dataclasses import dataclass, field
 from reins.kernel.types import FailureClass, GrantRef, HandleRef, RunStatus
 
 
+@dataclass(frozen=True)
+class PendingRepair:
+    eval_id: str
+    failure_class: FailureClass
+    repair_route: str
+    retry_allowed: bool
+    details: str
+    repair_hints: list[str] = field(default_factory=list)
+    command_id: str | None = None
+
+
+@dataclass(frozen=True)
+class CompletedRepair:
+    eval_id: str
+    command_id: str
+    failure_class: FailureClass | None = None
+
+
 @dataclass
 class RunState:
     run_id: str
@@ -17,6 +35,9 @@ class RunState:
     pending_approvals: list[str] = field(default_factory=list)
     open_questions: list[str] = field(default_factory=list)
     last_failure_class: FailureClass | None = None
+    pending_repair: PendingRepair | None = None
+    repairing_command_id: str | None = None
+    last_completed_repair: CompletedRepair | None = None
     last_checkpoint_id: str | None = None
 
 
@@ -27,9 +48,15 @@ class StateSnapshot:
     event_seq: int
     reducer_version: str
     run_phase: str
+    current_node_id: str | None = None
     task_graph_ref: str | None = None
     open_nodes: list[str] = field(default_factory=list)
     closed_nodes: list[str] = field(default_factory=list)
     active_grants: list[GrantRef] = field(default_factory=list)
     pending_approvals: list[str] = field(default_factory=list)
+    open_questions: list[str] = field(default_factory=list)
+    last_failure_class: FailureClass | None = None
+    pending_repair: PendingRepair | None = None
+    repairing_command_id: str | None = None
+    last_completed_repair: CompletedRepair | None = None
     working_set_manifest_ref: str | None = None

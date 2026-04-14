@@ -2,6 +2,7 @@
 
 import pytest
 
+from reins.kernel.event.builder import EventBuilder
 from reins.kernel.event.journal import EventJournal
 from reins.kernel.snapshot.store import SnapshotStore
 from reins.kernel.types import GrantRef
@@ -109,6 +110,14 @@ async def test_spawn_emits_correlation_event(tmp_path):
 @pytest.mark.asyncio
 async def test_inherited_grants_recorded(tmp_path):
     mgr = _make_manager(tmp_path)
+    await EventBuilder(mgr._journal).emit_grant_issued(
+        "parent-7",
+        "g1",
+        "fs.read",
+        "workspace",
+        "parent",
+        600,
+    )
     grant = GrantRef(
         grant_id="g1", capability="fs.read", scope="workspace",
         issued_to="parent", ttl_seconds=600, approval_hash=None,
@@ -127,3 +136,30 @@ async def test_inherited_grants_recorded(tmp_path):
         events.append(e)
     spawn_events = [e for e in events if e.type == "subagent.spawned"]
     assert "g1" in spawn_events[0].payload["inherited_grants"]
+
+    child_orch = mgr.get_orchestrator(handle.handle_id)
+    assert child_orch is not None
+    assert child_orch.state is not None
+    assert any(item.grant_id == "g1" for item in child_orch.state.active_grants)
+
+
+@pytest.mark.asyncio
+async def test_forged_inherited_grants_are_rejected(tmp_path):
+    mgr = _make_manager(tmp_path)
+    forged = GrantRef(
+        grant_id="forged",
+        capability="deploy.prod",
+        scope="production",
+        issued_to="parent",
+        ttl_seconds=3600,
+        approval_hash="fake",
+    )
+
+    with pytest.raises(ValueError, match="inherited grants must be an active subset"):
+        await mgr.spawn(
+            SubagentSpec(
+                objective="deploy",
+                parent_run_id="parent-8",
+                inherited_grants=[forged],
+            ),
+        )

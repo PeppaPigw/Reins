@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 
 import ulid
 
@@ -16,7 +17,7 @@ class EvalResult:
     evaluator_kind: str
     passed: bool
     score: float
-    details: dict
+    details: str | dict[str, Any]
     failure_class: FailureClass | None = None
     repair_hints: list[str] = field(default_factory=list)
     eval_id: str = field(default_factory=lambda: str(ulid.new()))

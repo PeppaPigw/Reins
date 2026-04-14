@@ -7,7 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import AsyncIterator
 
-import aiofiles
+import aiofiles  # type: ignore[import-untyped]
 
 from reins.kernel.event.envelope import EventEnvelope, event_from_dict, event_to_dict
 
@@ -20,7 +20,7 @@ class EventJournal:
         self._lock = asyncio.Lock()
         self._seq_cache: dict[str, int] = {}
 
-    async def append(self, event: EventEnvelope) -> None:
+    async def append(self, event: EventEnvelope) -> EventEnvelope:
         async with self._lock:
             next_seq = self._seq_cache.get(event.run_id)
             if next_seq is None:
@@ -32,6 +32,7 @@ class EventJournal:
                 await handle.flush()
                 await asyncio.to_thread(os.fsync, handle.fileno())
             self._seq_cache[event.run_id] = stored.seq
+            return stored
 
     async def read_from(self, run_id: str, from_seq: int = 0) -> AsyncIterator[EventEnvelope]:
         async with aiofiles.open(self.path, "r", encoding="utf-8") as handle:

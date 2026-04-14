@@ -22,6 +22,7 @@ async def test_commit_creates_event(tmp_path):
     assert event.type == "run.started"
     assert event.actor == Actor.runtime
     assert event.checksum  # non-empty
+    assert event.seq == 1
 
 
 @pytest.mark.asyncio
@@ -70,6 +71,7 @@ async def test_causation_and_trace_ids(tmp_path):
         correlation_id="corr-1",
         trace_id="trace-1",
     )
+    assert event.seq == 1
     assert event.causation_id == "cause-1"
     assert event.correlation_id == "corr-1"
     assert event.trace_id == "trace-1"

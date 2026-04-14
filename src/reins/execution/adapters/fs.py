@@ -22,7 +22,18 @@ class FilesystemAdapter(Adapter):
     async def exec(self, handle: Handle, command: dict) -> Observation:
         root = self._roots[handle.handle_id]
         op = command["op"]
-        target = root / command.get("path", "")
+
+        # Validate path containment
+        rel_path = command.get("path", "")
+        target = (root / rel_path).resolve()
+        if not self._is_contained(target, root):
+            return Observation(
+                "",
+                f"path escape attempt: {rel_path} resolves outside workspace",
+                1,
+                effect_descriptor={"op": op, "path": rel_path, "error": "path_escape"}
+            )
+
         if op == "read":
             return Observation(target.read_text(), "", 0, effect_descriptor={"op": op, "path": str(target)})
         if op == "write":
@@ -40,7 +51,15 @@ class FilesystemAdapter(Adapter):
                 target.unlink()
             return Observation(str(target), "", 0, effect_descriptor={"op": op, "path": str(target)})
         if op == "move":
-            destination = root / command["dest"]
+            dest_rel = command["dest"]
+            destination = (root / dest_rel).resolve()
+            if not self._is_contained(destination, root):
+                return Observation(
+                    "",
+                    f"path escape attempt: {dest_rel} resolves outside workspace",
+                    1,
+                    effect_descriptor={"op": op, "dest": dest_rel, "error": "path_escape"}
+                )
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(target), str(destination))
             return Observation(str(destination), "", 0, effect_descriptor={"op": op, "path": str(target)})
@@ -57,13 +76,18 @@ class FilesystemAdapter(Adapter):
         return digest.hexdigest()
 
     async def freeze(self, handle: Handle) -> dict:
-        return {"handle_id": handle.handle_id, "root": str(self._roots[handle.handle_id])}
+        return {
+            "handle_id": handle.handle_id,
+            "adapter_kind": handle.adapter_kind,
+            "adapter_id": handle.adapter_id,
+            "root": str(self._roots[handle.handle_id]),
+        }
 
     async def thaw(self, frozen: dict) -> Handle:
         root = Path(frozen["root"]).resolve()
         handle = Handle(
-            adapter_kind="fs",
-            adapter_id=self.adapter_id,
+            adapter_kind=frozen.get("adapter_kind", "fs"),
+            adapter_id=frozen.get("adapter_id", self.adapter_id),
             metadata={"root": str(root)},
             handle_id=frozen["handle_id"],
         )
@@ -78,3 +102,12 @@ class FilesystemAdapter(Adapter):
 
     async def close(self, handle: Handle) -> None:
         self._roots.pop(handle.handle_id, None)
+
+    @staticmethod
+    def _is_contained(target: Path, root: Path) -> bool:
+        """Check if target path is contained within root directory."""
+        try:
+            target.relative_to(root)
+            return True
+        except ValueError:
+            return False

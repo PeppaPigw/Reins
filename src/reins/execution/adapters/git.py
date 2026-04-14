@@ -29,18 +29,24 @@ class GitAdapter(Adapter):
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await process.communicate()
-        return stdout.decode(), stderr.decode(), process.returncode
+        return stdout.decode(), stderr.decode(), int(process.returncode or 0)
 
     async def exec(self, handle: Handle, command: dict) -> Observation:
         repo = self._repos[handle.handle_id]
         op = command["op"]
-        args = {
-            "status": ("status", "--short"),
-            "diff": ("diff", "--stat"),
-            "log": ("log", f"-n{command.get('n', 10)}", "--oneline"),
-            "branch": ("branch",) if "name" not in command else ("branch", command["name"]),
-            "checkout": ("checkout", command["target"]),
-        }.get(op)
+        args: tuple[str, ...] | None
+        if op == "status":
+            args = ("status", "--short")
+        elif op == "diff":
+            args = ("diff", "--stat")
+        elif op == "log":
+            args = ("log", f"-n{command.get('n', 10)}", "--oneline")
+        elif op == "branch":
+            args = ("branch",) if "name" not in command else ("branch", command["name"])
+        elif op == "checkout":
+            args = ("checkout", command["target"])
+        else:
+            args = None
         if op == "commit":
             if command.get("add_all", True):
                 await self._run(repo, "add", "-A")
@@ -67,13 +73,18 @@ class GitAdapter(Adapter):
         return str({"head": head.strip(), "status": status.strip()})
 
     async def freeze(self, handle: Handle) -> dict:
-        return {"handle_id": handle.handle_id, "repo": str(self._repos[handle.handle_id])}
+        return {
+            "handle_id": handle.handle_id,
+            "adapter_kind": handle.adapter_kind,
+            "adapter_id": handle.adapter_id,
+            "repo": str(self._repos[handle.handle_id]),
+        }
 
     async def thaw(self, frozen: dict) -> Handle:
         repo = Path(frozen["repo"]).resolve()
         handle = Handle(
-            adapter_kind="git",
-            adapter_id=self.adapter_id,
+            adapter_kind=frozen.get("adapter_kind", "git"),
+            adapter_id=frozen.get("adapter_id", self.adapter_id),
             metadata={"repo": str(repo)},
             handle_id=frozen["handle_id"],
         )

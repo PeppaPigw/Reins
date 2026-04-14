@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import sys
 from datetime import UTC, datetime
 
 import ulid
@@ -19,16 +21,17 @@ class LintEvaluator(Evaluator):
         cwd = context.get("cwd", ".")
         run_id = context.get("run_id", "unknown")
         command_id = context.get("command_id")
+        env = os.environ | {"PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"}
 
         proc = await asyncio.create_subprocess_exec(
-            "python", "-m", "ruff", "check", target, "--output-format=text",
+            sys.executable, "-m", "ruff", "check", target, "--output-format=text",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,
+            env=env,
         )
         stdout_b, stderr_b = await proc.communicate()
         stdout = stdout_b.decode("utf-8", errors="replace")
-        stderr = stderr_b.decode("utf-8", errors="replace")
 
         passed = (proc.returncode or 0) == 0
         details = stdout.strip() if not passed else "no lint issues"

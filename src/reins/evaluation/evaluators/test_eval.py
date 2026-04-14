@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
+import sys
 from datetime import UTC, datetime
 
 import ulid
@@ -20,13 +22,15 @@ class TestEvaluator(Evaluator):
         cwd = context.get("cwd", ".")
         run_id = context.get("run_id", "unknown")
         command_id = context.get("command_id")
-        python = context.get("python", "python")
+        python = context.get("python", sys.executable)
+        env = os.environ | {"PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"}
 
         proc = await asyncio.create_subprocess_exec(
             python, "-m", "pytest", target, "-v", "--tb=short",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,
+            env=env,
         )
         stdout_b, stderr_b = await proc.communicate()
         stdout = stdout_b.decode("utf-8", errors="replace")

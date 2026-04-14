@@ -48,8 +48,8 @@ class CommandEnvelope:
     normalized_kind: str
     args: dict[str, Any] = field(default_factory=dict)
     parent_proposal_id: str | None = None
-    preconditions: list[str] = field(default_factory=list)
-    policy_scope: list[str] = field(default_factory=list)
+    preconditions: dict[str, Any] = field(default_factory=dict)
+    policy_scope: dict[str, Any] = field(default_factory=dict)
     risk_tier: RiskTier = RiskTier.T0
     idempotency_key: str | None = None
     evidence_refs: list[str] = field(default_factory=list)

@@ -36,7 +36,7 @@ class ShellAdapter(Adapter):
         return Observation(
             stdout=stdout.decode(),
             stderr=stderr.decode(),
-            exit_code=process.returncode,
+            exit_code=int(process.returncode or 0),
             effect_descriptor={"cmd": cmd, "cwd": session["cwd"]},
         )
 
@@ -49,6 +49,7 @@ class ShellAdapter(Adapter):
         session = self._sessions[handle.handle_id]
         return {
             "handle_id": handle.handle_id,
+            "adapter_kind": handle.adapter_kind,
             "adapter_id": self.adapter_id,
             "cwd": session["cwd"],
             "env": session["env"],
@@ -58,7 +59,7 @@ class ShellAdapter(Adapter):
 
     async def thaw(self, frozen: dict) -> Handle:
         handle = Handle(
-            adapter_kind="shell",
+            adapter_kind=frozen.get("adapter_kind", "shell"),
             adapter_id=frozen.get("adapter_id", self.adapter_id),
             metadata={"cwd": frozen["cwd"], "restored_process": False},
             handle_id=frozen["handle_id"],

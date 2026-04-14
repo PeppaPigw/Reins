@@ -27,9 +27,10 @@ from reins.kernel.event.builder import EventBuilder
 from reins.kernel.event.journal import EventJournal
 from reins.kernel.intent.envelope import IntentEnvelope
 from reins.kernel.orchestrator import RunOrchestrator
+from reins.kernel.reducer.reducer import reduce
 from reins.kernel.reducer.state import RunState
 from reins.kernel.snapshot.store import SnapshotStore
-from reins.kernel.types import GrantRef, RunStatus
+from reins.kernel.types import FailureClass, GrantRef
 from reins.memory.checkpoint import CheckpointStore
 from reins.policy.engine import PolicyEngine
 
@@ -93,11 +94,13 @@ class SubagentManager:
         self._checkpoint_store = checkpoint_store
         self._policy = policy_engine
         self._active: dict[str, SubagentHandle] = {}
+        self._children: dict[str, RunOrchestrator] = {}
         self._completed: list[SubagentHandle] = []
         self._builder = EventBuilder(journal)
 
     async def spawn(self, spec: SubagentSpec) -> SubagentHandle:
         """Spawn a new local subagent. Returns a handle for supervision."""
+        await self._validate_inherited_grants(spec)
         child_run_id = str(ulid.new())
         handle = SubagentHandle(
             handle_id=str(ulid.new()),
@@ -128,6 +131,7 @@ class SubagentManager:
             self._journal, self._snapshot_store,
             self._checkpoint_store, self._policy, context,
         )
+        self._children[handle.handle_id] = child_orch
 
         # Intake the child run
         intent = IntentEnvelope(
@@ -135,6 +139,18 @@ class SubagentManager:
             objective=spec.objective,
         )
         await child_orch.intake(intent)
+        for grant in spec.inherited_grants:
+            event = await self._builder.emit_grant_issued(
+                child_run_id,
+                grant.grant_id,
+                grant.capability,
+                grant.scope,
+                grant.issued_to,
+                grant.ttl_seconds,
+                approval_hash=grant.approval_hash,
+                inherited=True,
+            )
+            child_orch.apply_event(event)
         handle.status = SubagentStatus.running
         return handle
 
@@ -154,10 +170,13 @@ class SubagentManager:
     ) -> SubagentHandle | None:
         """Mark a subagent as completed with a result."""
         handle = self._active.pop(handle_id, None)
+        child_orch = self._children.pop(handle_id, None)
         if handle is None:
             return None
         handle.status = SubagentStatus.completed
         handle.result = result
+        if child_orch is not None:
+            await child_orch.complete()
 
         await self._builder.commit(
             run_id=handle.parent_run_id,
@@ -178,10 +197,13 @@ class SubagentManager:
     ) -> SubagentHandle | None:
         """Mark a subagent as failed."""
         handle = self._active.pop(handle_id, None)
+        child_orch = self._children.pop(handle_id, None)
         if handle is None:
             return None
         handle.status = SubagentStatus.failed
         handle.result = {"error": reason}
+        if child_orch is not None:
+            await child_orch.fail(FailureClass.remote_agent_failure, reason)
 
         await self._builder.commit(
             run_id=handle.parent_run_id,
@@ -199,10 +221,13 @@ class SubagentManager:
     async def abort(self, handle_id: str, reason: str = "aborted") -> None:
         """Abort a running subagent."""
         handle = self._active.pop(handle_id, None)
+        child_orch = self._children.pop(handle_id, None)
         if handle is None:
             return
         handle.status = SubagentStatus.aborted
         handle.result = {"aborted": reason}
+        if child_orch is not None:
+            await child_orch.abort(reason)
 
         await self._builder.commit(
             run_id=handle.parent_run_id,
@@ -229,3 +254,23 @@ class SubagentManager:
 
     def get(self, handle_id: str) -> SubagentHandle | None:
         return self._active.get(handle_id)
+
+    def get_orchestrator(self, handle_id: str) -> RunOrchestrator | None:
+        return self._children.get(handle_id)
+
+    async def _validate_inherited_grants(self, spec: SubagentSpec) -> None:
+        if not spec.inherited_grants:
+            return
+        parent_state = RunState(run_id=spec.parent_run_id)
+        async for event in self._journal.read_from(spec.parent_run_id):
+            parent_state = reduce(parent_state, event)
+        active_by_id = {grant.grant_id: grant for grant in parent_state.active_grants}
+        invalid = [
+            grant.grant_id
+            for grant in spec.inherited_grants
+            if active_by_id.get(grant.grant_id) != grant
+        ]
+        if invalid:
+            raise ValueError(
+                f"inherited grants must be an active subset of parent grants: {', '.join(invalid)}",
+            )

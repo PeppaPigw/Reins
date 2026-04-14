@@ -2,5 +2,7 @@ memo/
 .*/
 !.gitignore
 __pycache__
-AGENTS.md*.DS_Store
+AGENTS.md
+*.DS_Store
 amp
+pytest/

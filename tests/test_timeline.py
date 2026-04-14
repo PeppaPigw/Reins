@@ -5,7 +5,7 @@ import pytest
 from reins.kernel.event.builder import EventBuilder
 from reins.kernel.event.journal import EventJournal
 from reins.kernel.types import RunStatus
-from reins.timeline.builder import TimelineBuilder, _summarize_event
+from reins.timeline.builder import TimelineBuilder
 
 
 @pytest.mark.asyncio
@@ -116,3 +116,104 @@ async def test_timeline_pending_approvals(tmp_path):
     assert tl.final_status == RunStatus.waiting_approval
     assert "ap-1" in tl.pending_approvals
     assert "Approval requested" in tl.entries[-1].summary
+
+
+@pytest.mark.asyncio
+async def test_timeline_captures_repair_state_for_handoff(tmp_path):
+    journal = EventJournal(tmp_path / "journal.jsonl")
+    builder = EventBuilder(journal)
+
+    await builder.emit_run_started("run-6", "repair failing eval")
+    await builder.commit(
+        "run-6",
+        "eval.completed",
+        {
+            "eval_id": "eval-1",
+            "passed": False,
+            "failure_class": "logic_failure",
+            "details": "assertion error",
+            "repair_route": "change_hypothesis",
+            "retry_allowed": False,
+            "repair_hints": ["fix assertion", "update fixture"],
+        },
+    )
+    await builder.emit_repair_required(
+        "run-6",
+        "eval-1",
+        "logic_failure",
+        "change_hypothesis",
+        False,
+        "assertion error",
+        ["fix assertion", "update fixture"],
+        command_id="cmd-1",
+    )
+
+    tl = await TimelineBuilder(journal).build("run-6")
+
+    assert tl.repair_state == {
+        "failure_class": "logic_failure",
+        "repair_route": "change_hypothesis",
+        "retry_allowed": False,
+        "details": "assertion error",
+        "repair_hints": ["fix assertion", "update fixture"],
+        "command_id": "cmd-1",
+    }
+    assert "Repair required" in tl.entries[-1].summary
+
+
+@pytest.mark.asyncio
+async def test_timeline_tracks_repair_started_state(tmp_path):
+    journal = EventJournal(tmp_path / "journal.jsonl")
+    builder = EventBuilder(journal)
+
+    await builder.emit_run_started("run-7", "repair lifecycle")
+    await builder.emit_repair_required(
+        "run-7",
+        "eval-1",
+        "logic_failure",
+        "change_hypothesis",
+        False,
+        "assertion error",
+        ["fix assertion"],
+        command_id="cmd-old",
+    )
+    await builder.emit_repair_started(
+        "run-7",
+        "cmd-new",
+        "eval-1",
+        "logic_failure",
+    )
+
+    tl = await TimelineBuilder(journal).build("run-7")
+    assert tl.repair_state is None
+    assert tl.repairing_command_id == "cmd-new"
+    assert "Repair started" in tl.entries[-1].summary
+
+
+@pytest.mark.asyncio
+async def test_timeline_tracks_repair_finished_state(tmp_path):
+    journal = EventJournal(tmp_path / "journal.jsonl")
+    builder = EventBuilder(journal)
+
+    await builder.emit_run_started("run-8", "repair lifecycle")
+    await builder.emit_repair_started(
+        "run-8",
+        "cmd-new",
+        "eval-1",
+        "logic_failure",
+    )
+    await builder.emit_repair_finished(
+        "run-8",
+        "cmd-new",
+        "eval-2",
+        resolved_failure_class="logic_failure",
+    )
+
+    tl = await TimelineBuilder(journal).build("run-8")
+    assert tl.repairing_command_id is None
+    assert tl.last_completed_repair == {
+        "eval_id": "eval-2",
+        "command_id": "cmd-new",
+        "failure_class": "logic_failure",
+    }
+    assert "Repair finished" in tl.entries[-1].summary

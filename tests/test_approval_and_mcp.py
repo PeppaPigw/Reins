@@ -58,6 +58,28 @@ async def test_effect_descriptor_hash_deterministic():
     assert e1.descriptor_hash == e2.descriptor_hash
     e3 = EffectDescriptor(capability="x", resource="b", intent_ref="i", command_id="c")
     assert e1.descriptor_hash != e3.descriptor_hash
+    e4 = EffectDescriptor(capability="a", resource="b", intent_ref="other", command_id="other")
+    assert e1.descriptor_hash == e4.descriptor_hash
+
+
+@pytest.mark.asyncio
+async def test_pending_requests_survive_restart(tmp_path):
+    base = tmp_path / "approvals"
+    req = await ApprovalLedger(base).request(
+        "run-3",
+        EffectDescriptor(
+            capability="git.push",
+            resource="origin/main",
+            intent_ref="intent-3",
+            command_id="cmd-3",
+        ),
+        "model",
+    )
+
+    reloaded = ApprovalLedger(base)
+    assert len(reloaded.pending) == 1
+    grant = await reloaded.approve(req.request_id, "human")
+    assert grant is not None
 
 
 # ---- MCP Session Manager ----

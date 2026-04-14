@@ -54,6 +54,9 @@ class RunTimeline:
     subagent_ids: list[str] = field(default_factory=list)
     failure_class: str | None = None
     pending_approvals: list[str] = field(default_factory=list)
+    repair_state: dict[str, Any] | None = None
+    repairing_command_id: str | None = None
+    last_completed_repair: dict[str, Any] | None = None
 
 
 def _summarize_event(event: EventEnvelope) -> str:
@@ -68,6 +71,11 @@ def _summarize_event(event: EventEnvelope) -> str:
             return f"Granted {payload.get('capability', '?')} to {payload.get('issued_to', '?')}"
         case "policy.grant_revoked":
             return f"Revoked grant {payload.get('grant_id', '?')}"
+        case "adapter.handle_opened":
+            return (
+                f"Opened {payload.get('adapter_kind', '?')} handle "
+                f"{payload.get('handle_id', '?')}"
+            )
         case "approval.requested":
             return f"Approval requested: {payload.get('summary', '?')}"
         case "approval.resolved":
@@ -77,6 +85,15 @@ def _summarize_event(event: EventEnvelope) -> str:
         case "eval.completed":
             status = "PASS" if payload.get("passed") else "FAIL"
             return f"Eval {status}: {payload.get('details', '')[:80]}"
+        case "repair.required":
+            return (
+                f"Repair required: {payload.get('failure_class', '?')} "
+                f"via {payload.get('repair_route', '?')}"
+            )
+        case "repair.started":
+            return f"Repair started by command {payload.get('command_id', '?')}"
+        case "repair.finished":
+            return f"Repair finished by command {payload.get('command_id', '?')}"
         case "subagent.spawned":
             return f"Spawned subagent for: {payload.get('objective', '?')[:60]}"
         case "subagent.completed":
@@ -144,6 +161,26 @@ class TimelineBuilder:
             state.last_failure_class.value if state.last_failure_class else None
         )
         timeline.pending_approvals = list(state.pending_approvals)
+        if state.pending_repair is not None:
+            timeline.repair_state = {
+                "failure_class": state.pending_repair.failure_class.value,
+                "repair_route": state.pending_repair.repair_route,
+                "retry_allowed": state.pending_repair.retry_allowed,
+                "details": state.pending_repair.details,
+                "repair_hints": list(state.pending_repair.repair_hints),
+                "command_id": state.pending_repair.command_id,
+            }
+        timeline.repairing_command_id = state.repairing_command_id
+        if state.last_completed_repair is not None:
+            timeline.last_completed_repair = {
+                "eval_id": state.last_completed_repair.eval_id,
+                "command_id": state.last_completed_repair.command_id,
+                "failure_class": (
+                    state.last_completed_repair.failure_class.value
+                    if state.last_completed_repair.failure_class is not None
+                    else None
+                ),
+            }
 
         if timeline.entries:
             timeline.first_ts = timeline.entries[0].ts
@@ -163,6 +200,9 @@ class TimelineBuilder:
             "duration_seconds": tl.duration_seconds,
             "failure_class": tl.failure_class,
             "pending_approvals": tl.pending_approvals,
+            "repair_state": tl.repair_state,
+            "repairing_command_id": tl.repairing_command_id,
+            "last_completed_repair": tl.last_completed_repair,
             "subagent_ids": tl.subagent_ids,
             "entries": [
                 {"seq": e.seq, "type": e.event_type, "summary": e.summary}

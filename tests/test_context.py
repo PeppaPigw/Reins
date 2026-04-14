@@ -32,6 +32,60 @@ def test_active_set_builds():
     assert all(s.tier == "B" for s in shards)
 
 
+def test_active_set_includes_repair_metadata():
+    compiler = ContextCompiler()
+    shards = compiler.build_active_set(
+        run_id="run-1",
+        snapshot={"run_phase": "resumable"},
+        open_nodes=[],
+        eval_failures=[{
+            "failure_class": "logic_failure",
+            "details": "assertion failed",
+            "repair_route": "change_hypothesis",
+            "retry_allowed": False,
+            "repair_hints": ["fix assertion", "rewrite expectation"],
+        }],
+        affected_files=[],
+    )
+
+    eval_shard = next(shard for shard in shards if shard.source == "eval_failure")
+    assert "Repair route: change_hypothesis" in eval_shard.content
+    assert "Retry allowed: False" in eval_shard.content
+    assert "fix assertion" in eval_shard.content
+
+
+def test_active_set_includes_repairing_command_in_snapshot():
+    compiler = ContextCompiler()
+    shards = compiler.build_active_set(
+        run_id="run-1",
+        snapshot={"run_phase": "executing", "repairing_command_id": "cmd-repair-1"},
+        open_nodes=[],
+        eval_failures=[],
+        affected_files=[],
+    )
+    snapshot_shard = next(shard for shard in shards if shard.source == "snapshot")
+    assert "Repairing command: cmd-repair-1" in snapshot_shard.content
+
+
+def test_active_set_includes_last_completed_repair_in_snapshot():
+    compiler = ContextCompiler()
+    shards = compiler.build_active_set(
+        run_id="run-1",
+        snapshot={
+            "run_phase": "resumable",
+            "last_completed_repair": {
+                "failure_class": "logic_failure",
+                "command_id": "cmd-repair-1",
+            },
+        },
+        open_nodes=[],
+        eval_failures=[],
+        affected_files=[],
+    )
+    snapshot_shard = next(shard for shard in shards if shard.source == "snapshot")
+    assert "Last completed repair: logic_failure via cmd-repair-1" in snapshot_shard.content
+
+
 def test_compile_respects_budget():
     compiler = ContextCompiler(token_budget=50)
     # Tier A shard

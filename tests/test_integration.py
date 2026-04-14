@@ -11,6 +11,8 @@ import pytest
 from pathlib import Path
 
 from reins.context.compiler import ContextCompiler
+from reins.execution.dispatcher import ExecutionDispatcher
+from reins.evaluation.runner import EvaluationRunner
 from reins.evaluation.classifier import FailureClassifier
 from reins.evaluation.evaluators.spec import SpecEvaluator
 from reins.kernel.event.journal import EventJournal
@@ -35,8 +37,22 @@ async def test_full_vertical_slice(tmp_path):
     checkpoints = CheckpointStore(tmp_path / "checkpoints")
     policy = PolicyEngine()
     context = ContextCompiler(token_budget=50_000)
+    approvals = ApprovalLedger(tmp_path / "approvals")
+    dispatcher = ExecutionDispatcher()
+    eval_runner = EvaluationRunner(
+        evaluators={"spec": SpecEvaluator()},
+    )
 
-    orch = RunOrchestrator(journal, snapshots, checkpoints, policy, context)
+    orch = RunOrchestrator(
+        journal,
+        snapshots,
+        checkpoints,
+        policy,
+        context,
+        approvals,
+        dispatcher,
+        eval_runner,
+    )
 
     # ---- Phase 1: Intake ----
     intent = IntentEnvelope(run_id="integration-1", objective="refactor auth module")
@@ -44,20 +60,22 @@ async def test_full_vertical_slice(tmp_path):
     assert state.status == RunStatus.routing
 
     # ---- Phase 2: Route ----
-    path = await orch.route()
+    await orch.route()
     # With no requested capabilities, routes to fast path
     assert state is not None
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    auth_path = workspace / "src" / "auth.py"
+    auth_path.parent.mkdir(parents=True)
+    auth_path.write_text("class Auth:\n    pass\n", encoding="utf-8")
 
     # ---- Phase 3: Execute a safe read command ----
     read_proposal = CommandProposal(
         run_id="integration-1", source="model", kind="fs.read",
-        args={"path": "src/auth.py"},
+        args={"root": str(workspace), "path": "src/auth.py"},
     )
 
-    async def mock_fs_read(kind, args):
-        return {"stdout": "class Auth:\n    pass\n", "exit_code": 0}
-
-    result = await orch.process_proposal(read_proposal, execute_fn=mock_fs_read)
+    result = await orch.process_proposal(read_proposal)
     assert result["granted"] is True
     assert result["executed"] is True
     assert "class Auth" in result["observation"]["stdout"]
@@ -65,14 +83,16 @@ async def test_full_vertical_slice(tmp_path):
     # ---- Phase 4: Execute a write command (also T1 → auto-allow) ----
     write_proposal = CommandProposal(
         run_id="integration-1", source="model", kind="fs.write.workspace",
-        args={"path": "src/auth.py", "content": "class Auth:\n    pass\n"},
+        args={
+            "root": str(workspace),
+            "path": "src/auth.py",
+            "content": "class Auth:\n    pass\n    active = True\n",
+        },
     )
 
-    async def mock_fs_write(kind, args):
-        return {"stdout": "", "exit_code": 0, "bytes_written": 24}
-
-    result = await orch.process_proposal(write_proposal, execute_fn=mock_fs_write)
+    result = await orch.process_proposal(write_proposal)
     assert result["granted"] is True
+    assert "active = True" in auth_path.read_text(encoding="utf-8")
 
     # ---- Phase 5: Local subagent for tests ----
     sub_mgr = SubagentManager(journal, snapshots, checkpoints, policy)
@@ -95,25 +115,30 @@ async def test_full_vertical_slice(tmp_path):
     })
     assert sub_mgr.active_count == 0
 
-    # ---- Phase 6: Spec evaluation ----
-    spec_eval = SpecEvaluator()
-    eval_result = await spec_eval.evaluate({
-        "cwd": str(Path.cwd()),  # checks the real Reins codebase
-        "run_id": "integration-1",
-    })
-    assert eval_result.passed, f"Spec violations: {eval_result.details}"
+    # ---- Phase 6: Integrated evaluation ----
+    status_result = await orch.process_proposal(
+        CommandProposal(
+            run_id="integration-1",
+            source="model",
+            kind="git.status",
+            args={"repo": str(Path.cwd())},
+        ),
+        evaluate=True,
+        eval_context={"evaluators": ["spec"], "cwd": str(Path.cwd())},
+    )
+    assert status_result["executed"] is True
+    assert status_result["eval_passed"] is True
 
     # ---- Phase 7: Approval ledger (for a high-risk op) ----
-    ledger = ApprovalLedger(tmp_path / "approvals")
     effect = EffectDescriptor(
         capability="git.push", resource="origin/main",
         intent_ref="integration-1", command_id="cmd-push",
     )
-    req = await ledger.request("integration-1", effect, "model")
-    assert len(ledger.pending) == 1
-    grant = await ledger.approve(req.request_id, "human")
+    req = await approvals.request("integration-1", effect, "model")
+    assert len(approvals.pending) == 1
+    grant = await approvals.approve(req.request_id, "human")
     assert grant is not None
-    assert len(ledger.pending) == 0
+    assert len(approvals.pending) == 0
 
     # ---- Phase 8: Complete the run ----
     final_state = await orch.complete()
@@ -124,7 +149,7 @@ async def test_full_vertical_slice(tmp_path):
     timeline = await tl_builder.build("integration-1")
 
     assert timeline.final_status == RunStatus.completed
-    assert timeline.event_count >= 6  # started, routed, grants, executions, completion
+    assert timeline.event_count >= 7  # includes integrated eval event
     assert len(timeline.subagent_ids) == 1
 
     # Verify timeline has human-readable summaries
@@ -132,11 +157,12 @@ async def test_full_vertical_slice(tmp_path):
     assert any("refactor auth" in s for s in summaries)
     assert any("Spawned subagent" in s for s in summaries)
     assert any("Subagent completed" in s for s in summaries)
+    assert any("Eval PASS" in s for s in summaries)
     assert any("Run completed" in s for s in summaries)
 
     # ---- Phase 10: Context compilation ----
     context.load_standing_law(Path.cwd())
-    summary = await tl_builder.build_summary("integration-1")
+    await tl_builder.build_summary("integration-1")
     active_shards = context.build_active_set(
         run_id="integration-1",
         snapshot={"run_phase": "completed"},

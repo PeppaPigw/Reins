@@ -11,13 +11,11 @@ The pipeline:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 import ulid
 
 from reins.kernel.event.envelope import EventEnvelope
 from reins.kernel.event.journal import EventJournal
-from reins.kernel.types import Actor
+from reins.kernel.types import Actor, HandleRef
 
 
 class EventBuilder:
@@ -53,8 +51,7 @@ class EventBuilder:
             correlation_id=correlation_id,
             trace_id=trace_id or str(ulid.new()),
         )
-        await self._journal.append(event)
-        return event
+        return await self._journal.append(event)
 
     async def emit_run_started(self, run_id: str, objective: str) -> EventEnvelope:
         return await self.commit(
@@ -74,6 +71,7 @@ class EventBuilder:
         self, run_id: str, grant_id: str, capability: str,
         scope: str, issued_to: str, ttl_seconds: int,
         approval_hash: str | None = None,
+        inherited: bool = False,
     ) -> EventEnvelope:
         return await self.commit(
             run_id, "policy.grant_issued",
@@ -81,6 +79,7 @@ class EventBuilder:
                 "grant_id": grant_id, "capability": capability,
                 "scope": scope, "issued_to": issued_to,
                 "ttl_seconds": ttl_seconds, "approval_hash": approval_hash,
+                "inherited": inherited,
             },
             actor=Actor.policy,
         )
@@ -93,11 +92,19 @@ class EventBuilder:
         )
 
     async def emit_approval_requested(
-        self, run_id: str, approval_id: str, effect_summary: str,
+        self,
+        run_id: str,
+        approval_id: str,
+        effect_summary: str,
+        descriptor_hash: str | None = None,
     ) -> EventEnvelope:
         return await self.commit(
             run_id, "approval.requested",
-            {"approval_id": approval_id, "summary": effect_summary},
+            {
+                "approval_id": approval_id,
+                "summary": effect_summary,
+                "descriptor_hash": descriptor_hash,
+            },
             actor=Actor.policy,
         )
 
@@ -119,6 +126,18 @@ class EventBuilder:
             actor=Actor.runtime, command_id=command_id,
         )
 
+    async def emit_handle_opened(self, run_id: str, handle: HandleRef) -> EventEnvelope:
+        return await self.commit(
+            run_id,
+            "adapter.handle_opened",
+            {
+                "handle_id": handle.handle_id,
+                "adapter_kind": handle.adapter_kind,
+                "adapter_id": handle.adapter_id,
+            },
+            actor=Actor.runtime,
+        )
+
     async def emit_eval_completed(
         self, run_id: str, eval_id: str, passed: bool,
         failure_class: str | None = None, details: str = "",
@@ -130,6 +149,71 @@ class EventBuilder:
                 "failure_class": failure_class, "details": details,
             },
             actor=Actor.evaluator,
+        )
+
+    async def emit_repair_required(
+        self,
+        run_id: str,
+        eval_id: str,
+        failure_class: str,
+        repair_route: str,
+        retry_allowed: bool,
+        details: str,
+        repair_hints: list[str],
+        command_id: str | None = None,
+    ) -> EventEnvelope:
+        return await self.commit(
+            run_id,
+            "repair.required",
+            {
+                "eval_id": eval_id,
+                "failure_class": failure_class,
+                "repair_route": repair_route,
+                "retry_allowed": retry_allowed,
+                "details": details,
+                "repair_hints": repair_hints,
+                "command_id": command_id,
+            },
+            actor=Actor.evaluator,
+            command_id=command_id,
+        )
+
+    async def emit_repair_started(
+        self,
+        run_id: str,
+        command_id: str,
+        previous_eval_id: str,
+        previous_failure_class: str,
+    ) -> EventEnvelope:
+        return await self.commit(
+            run_id,
+            "repair.started",
+            {
+                "command_id": command_id,
+                "previous_eval_id": previous_eval_id,
+                "previous_failure_class": previous_failure_class,
+            },
+            actor=Actor.runtime,
+            command_id=command_id,
+        )
+
+    async def emit_repair_finished(
+        self,
+        run_id: str,
+        command_id: str,
+        eval_id: str,
+        resolved_failure_class: str | None = None,
+    ) -> EventEnvelope:
+        return await self.commit(
+            run_id,
+            "repair.finished",
+            {
+                "command_id": command_id,
+                "eval_id": eval_id,
+                "resolved_failure_class": resolved_failure_class,
+            },
+            actor=Actor.runtime,
+            command_id=command_id,
         )
 
     async def emit_run_completed(self, run_id: str) -> EventEnvelope:
@@ -145,11 +229,20 @@ class EventBuilder:
         )
 
     async def emit_run_dehydrated(
-        self, run_id: str, checkpoint_id: str,
+        self, run_id: str, checkpoint_id: str, snapshot_id: str | None = None,
     ) -> EventEnvelope:
         return await self.commit(
             run_id, "run.dehydrated",
-            {"checkpoint_id": checkpoint_id},
+            {"checkpoint_id": checkpoint_id, "snapshot_id": snapshot_id},
+            actor=Actor.runtime,
+        )
+
+    async def emit_run_hydrated(
+        self, run_id: str, checkpoint_id: str, snapshot_id: str | None = None,
+    ) -> EventEnvelope:
+        return await self.commit(
+            run_id, "run.hydrated",
+            {"checkpoint_id": checkpoint_id, "snapshot_id": snapshot_id},
             actor=Actor.runtime,
         )
 

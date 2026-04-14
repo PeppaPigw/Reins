@@ -6,8 +6,8 @@ from pathlib import Path
 import ulid
 
 from reins.kernel.event.journal import EventJournal
-from reins.kernel.reducer.state import RunState
-from reins.kernel.types import RunStatus
+from reins.kernel.reducer.state import RunState, StateSnapshot
+from reins.kernel.types import HandleRef, RunStatus
 from reins.serde import read_json, to_primitive, write_json_atomic
 
 
@@ -38,12 +38,27 @@ class CheckpointStore:
         data = await read_json(self.base_dir / run_id / f"{checkpoint_id}.json")
         return CheckpointManifest(**data)
 
+    async def load_any(self, checkpoint_id: str) -> CheckpointManifest:
+        for run_dir in sorted(self.base_dir.iterdir()):
+            if not run_dir.is_dir():
+                continue
+            path = run_dir / f"{checkpoint_id}.json"
+            if path.exists():
+                data = await read_json(path)
+                return CheckpointManifest(**data)
+        raise FileNotFoundError(checkpoint_id)
+
 
 class DehydrationMachine:
     def can_dehydrate(self, state: RunState) -> bool:
         return state.status not in {RunStatus.completed, RunStatus.aborted, RunStatus.failed}
 
-    async def dehydrate(self, state: RunState, journal: EventJournal) -> CheckpointManifest:
+    async def dehydrate(
+        self,
+        state: RunState,
+        journal: EventJournal,
+        frozen_handles: list[dict] | None = None,
+    ) -> CheckpointManifest:
         event_seq = await journal.get_seq(state.run_id)
         wake_conditions = [f"approval:{item}" for item in state.pending_approvals]
         wake_conditions.extend(f"question:{item}" for item in state.open_questions)
@@ -53,7 +68,11 @@ class DehydrationMachine:
             snapshot_id=state.snapshot_id,
             event_seq=event_seq,
             worktree_ref=state.working_set_manifest_ref,
-            frozen_handles=[to_primitive(handle) for handle in state.open_handles],
+            frozen_handles=(
+                list(frozen_handles)
+                if frozen_handles is not None
+                else [to_primitive(handle) for handle in state.open_handles]
+            ),
             wake_conditions=wake_conditions,
             revalidation_steps=[],
             resume_plan_ref=state.working_set_manifest_ref,
@@ -61,13 +80,46 @@ class DehydrationMachine:
         manifest.revalidation_steps = self.validate_drift_checks(manifest)
         return manifest
 
-    async def hydrate(self, manifest: CheckpointManifest) -> RunState:
+    async def hydrate(
+        self,
+        manifest: CheckpointManifest,
+        snapshot: StateSnapshot | None = None,
+    ) -> RunState:
+        pending_approvals = list(snapshot.pending_approvals) if snapshot is not None else []
+        for wake_condition in manifest.wake_conditions:
+            if not wake_condition.startswith("approval:"):
+                continue
+            approval_id = wake_condition.removeprefix("approval:")
+            if approval_id not in pending_approvals:
+                pending_approvals.append(approval_id)
         return RunState(
             run_id=manifest.run_id,
             status=RunStatus.resumable,
-            snapshot_id=manifest.snapshot_id,
-            working_set_manifest_ref=manifest.resume_plan_ref,
-            pending_approvals=[item.removeprefix("approval:") for item in manifest.wake_conditions if item.startswith("approval:")],
+            current_node_id=snapshot.current_node_id if snapshot is not None else None,
+            snapshot_id=snapshot.snapshot_id if snapshot is not None else manifest.snapshot_id,
+            working_set_manifest_ref=(
+                snapshot.working_set_manifest_ref
+                if snapshot is not None and snapshot.working_set_manifest_ref is not None
+                else manifest.resume_plan_ref
+            ),
+            open_handles=[
+                HandleRef(
+                    handle_id=handle["handle_id"],
+                    adapter_kind=handle["adapter_kind"],
+                    adapter_id=handle["adapter_id"],
+                )
+                for handle in manifest.frozen_handles
+                if {"handle_id", "adapter_kind", "adapter_id"}.issubset(handle)
+            ],
+            active_grants=list(snapshot.active_grants) if snapshot is not None else [],
+            pending_approvals=pending_approvals,
+            open_questions=list(snapshot.open_questions) if snapshot is not None else [],
+            last_failure_class=snapshot.last_failure_class if snapshot is not None else None,
+            pending_repair=snapshot.pending_repair if snapshot is not None else None,
+            repairing_command_id=snapshot.repairing_command_id if snapshot is not None else None,
+            last_completed_repair=(
+                snapshot.last_completed_repair if snapshot is not None else None
+            ),
             last_checkpoint_id=manifest.checkpoint_id,
         )
 

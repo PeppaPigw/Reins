@@ -7,17 +7,10 @@ collecting structured pass/fail/skip results for the evaluator.
 from __future__ import annotations
 
 import asyncio
-import json
-import re
-from dataclasses import dataclass, replace
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any
-
-import ulid
+import os
+import sys
 
 from reins.execution.adapter import Adapter, Handle, Observation
-from reins.kernel.types import ArtifactRef
 
 
 class TestRunnerAdapter(Adapter):
@@ -46,16 +39,18 @@ class TestRunnerAdapter(Adapter):
         framework = handle.metadata.get("framework", "pytest")
 
         if framework == "pytest":
-            cmd = ["python", "-m", "pytest", target, "-v", "--tb=short"]
+            cmd = [sys.executable, "-m", "pytest", target, "-v", "--tb=short"]
             cmd.extend(extra_args)
         else:
-            cmd = command.get("cmd", ["python", "-m", "pytest", target, "-v"])
+            cmd = command.get("cmd", [sys.executable, "-m", "pytest", target, "-v"])
+        env = os.environ | {"PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"}
 
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=root,
+            env=env,
         )
         stdout_b, stderr_b = await proc.communicate()
         stdout = stdout_b.decode("utf-8", errors="replace")
@@ -72,10 +67,11 @@ class TestRunnerAdapter(Adapter):
         root = handle.metadata.get("root", ".")
         target = command.get("target", "tests/")
         proc = await asyncio.create_subprocess_exec(
-            "python", "-m", "pytest", target, "--collect-only", "-q",
+            sys.executable, "-m", "pytest", target, "--collect-only", "-q",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=root,
+            env=os.environ | {"PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"},
         )
         stdout_b, stderr_b = await proc.communicate()
         return Observation(
@@ -88,13 +84,19 @@ class TestRunnerAdapter(Adapter):
         return f"test-runner:{handle.metadata.get('framework')}@{handle.metadata.get('root')}"
 
     async def freeze(self, handle: Handle) -> dict:
-        return {"adapter_kind": "test", "metadata": handle.metadata}
+        return {
+            "handle_id": handle.handle_id,
+            "adapter_kind": handle.adapter_kind,
+            "adapter_id": handle.adapter_id,
+            "metadata": handle.metadata,
+        }
 
     async def thaw(self, frozen: dict) -> Handle:
         return Handle(
-            adapter_kind="test",
-            adapter_id="pytest",
+            adapter_kind=frozen.get("adapter_kind", "test"),
+            adapter_id=frozen.get("adapter_id", "pytest"),
             metadata=frozen.get("metadata", {}),
+            handle_id=str(frozen["handle_id"]),
         )
 
     async def reset(self, handle: Handle) -> Handle:
