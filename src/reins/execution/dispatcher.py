@@ -6,7 +6,7 @@ from reins.execution.adapter import Adapter, Handle, Observation
 from reins.execution.adapters.fs import FilesystemAdapter
 from reins.execution.adapters.git import GitAdapter
 from reins.execution.adapters.mcp_adapter import McpAdapter
-from reins.execution.adapters.shell import ShellAdapter
+from reins.execution.adapters.shell import NetworkShellAdapter, SandboxedShellAdapter
 from reins.execution.adapters.test_runner import TestRunnerAdapter
 from reins.kernel.intent.envelope import CommandEnvelope
 from reins.kernel.types import HandleRef
@@ -27,7 +27,8 @@ class ExecutionDispatcher:
         self._adapters = adapters or {
             "fs": FilesystemAdapter(),
             "git": GitAdapter(),
-            "shell": ShellAdapter(),
+            "shell_sandboxed": SandboxedShellAdapter(),
+            "shell_network": NetworkShellAdapter(),
             "test": TestRunnerAdapter(),
             "mcp": McpAdapter(),
         }
@@ -104,7 +105,7 @@ class ExecutionDispatcher:
             return {"root": frozen["root"]}
         if adapter_kind == "git":
             return {"repo": frozen["repo"]}
-        if adapter_kind == "shell":
+        if adapter_kind == "shell_sandboxed" or adapter_kind == "shell_network":
             return {"cwd": frozen["cwd"], "env": frozen.get("env", {})}
         if adapter_kind == "test":
             metadata = frozen.get("metadata", {})
@@ -155,8 +156,9 @@ class ExecutionDispatcher:
         if capability in {"exec.shell.sandboxed", "exec.shell.network"}:
             cwd = args.get("cwd", ".")
             env = args.get("env", {})
+            adapter_kind = "shell_sandboxed" if capability == "exec.shell.sandboxed" else "shell_network"
             return (
-                "shell",
+                adapter_kind,
                 {"cwd": cwd, "env": env},
                 {"cmd": args["cmd"], "cwd": cwd, "env": env},
             )
