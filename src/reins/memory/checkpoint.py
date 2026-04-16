@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -92,6 +93,11 @@ class DehydrationMachine:
             approval_id = wake_condition.removeprefix("approval:")
             if approval_id not in pending_approvals:
                 pending_approvals.append(approval_id)
+
+        # Validate grants haven't expired
+        active_grants = list(snapshot.active_grants) if snapshot is not None else []
+        valid_grants = self._filter_expired_grants(active_grants)
+
         return RunState(
             run_id=manifest.run_id,
             status=RunStatus.resumable,
@@ -111,7 +117,7 @@ class DehydrationMachine:
                 for handle in manifest.frozen_handles
                 if {"handle_id", "adapter_kind", "adapter_id"}.issubset(handle)
             ],
-            active_grants=list(snapshot.active_grants) if snapshot is not None else [],
+            active_grants=valid_grants,
             pending_approvals=pending_approvals,
             open_questions=list(snapshot.open_questions) if snapshot is not None else [],
             last_failure_class=snapshot.last_failure_class if snapshot is not None else None,
@@ -122,6 +128,15 @@ class DehydrationMachine:
             ),
             last_checkpoint_id=manifest.checkpoint_id,
         )
+
+    def _filter_expired_grants(self, grants: list) -> list:
+        """Remove expired grants during hydration."""
+        now = time.time()
+        valid_grants = []
+        for grant in grants:
+            if grant.issued_at + grant.ttl_seconds >= now:
+                valid_grants.append(grant)
+        return valid_grants
 
     def validate_drift_checks(self, manifest: CheckpointManifest) -> list[str]:
         checks = ["replay_journal_since_checkpoint", "revalidate_policy_grants"]
