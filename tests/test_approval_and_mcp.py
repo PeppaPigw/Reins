@@ -113,10 +113,29 @@ async def test_mcp_disconnect():
 
 @pytest.mark.asyncio
 async def test_mcp_invoke_records_audit():
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from reins.execution.mcp.transport import JsonRpcResponse
+
     mgr = McpSessionManager()
-    await mgr.connect("s1", "Server1", "stdio://s1",
-                      tools=[{"name": "do_thing", "input_schema": {}}])
-    result = await mgr.invoke_tool("s1", "do_thing", {"x": 1}, "run-1")
-    assert result["call_id"]
-    assert len(mgr.audit_log) == 1
-    assert mgr.audit_log[0]["tool_name"] == "do_thing"
+
+    # Mock the transport
+    mock_transport = MagicMock()
+    mock_transport.send = AsyncMock(
+        return_value=JsonRpcResponse(
+            jsonrpc="2.0",
+            id="test-id",
+            result={"output": "success"},
+        )
+    )
+
+    with patch("reins.execution.mcp.session.create_transport") as mock_create:
+        mock_create.return_value = mock_transport
+
+        await mgr.connect("s1", "Server1", "stdio://s1",
+                          tools=[{"name": "do_thing", "input_schema": {}}])
+        result = await mgr.invoke_tool("s1", "do_thing", {"x": 1}, "run-1")
+
+        assert result["call_id"]
+        assert result["status"] == "success"
+        assert len(mgr.audit_log) == 1
+        assert mgr.audit_log[0]["tool_name"] == "do_thing"
