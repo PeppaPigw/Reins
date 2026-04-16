@@ -88,9 +88,20 @@ class RunRegistry:
         self._orchestrators[run_id] = orch
         return state
 
-    def get_state(self, run_id: str) -> RunState | None:
+    async def get_state(self, run_id: str) -> RunState | None:
         orch = self._orchestrators.get(run_id)
-        return orch.state if orch else None
+        if orch:
+            return orch.state
+        # Cold start: try to rebuild from journal
+        journal_dir = self._base / "journals"
+        run_file = journal_dir / f"{run_id}.jsonl"
+        if not run_file.exists():
+            return None
+        # Create orchestrator and rebuild state
+        orch = self._make_orchestrator(run_id)
+        state = await orch.rebuild(run_id)
+        self._orchestrators[run_id] = orch
+        return state
 
     def _require(self, run_id: str) -> RunOrchestrator:
         orch = self._orchestrators.get(run_id)

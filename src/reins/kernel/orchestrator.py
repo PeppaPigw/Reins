@@ -425,6 +425,13 @@ class RunOrchestrator:
         self._state = reduce(self._state, event)
         return self._state
 
+    async def rebuild(self, run_id: str) -> RunState:
+        """Rebuild state from journal events (cold start recovery)."""
+        self._state = RunState(run_id=run_id)
+        async for event in self._journal.read_from(run_id):
+            self._state = reduce(self._state, event)
+        return self._state
+
     def _build_effect_descriptor(self, command: CommandEnvelope) -> EffectDescriptor:
         resource = self._infer_resource(command.args)
         return EffectDescriptor(
