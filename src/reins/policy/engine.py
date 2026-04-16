@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 import ulid
@@ -53,12 +54,16 @@ class PolicyEngine:
     ) -> GrantRef | None:
         if effect_descriptor is None:
             return None
+        now = time.time()
         for grant in active_grants:
             if grant.capability != capability:
                 continue
             if grant.scope != effect_descriptor.resource:
                 continue
             if grant.approval_hash not in (None, effect_descriptor.descriptor_hash):
+                continue
+            # Check if grant has expired
+            if grant.issued_at + grant.ttl_seconds < now:
                 continue
             return grant
         return None
