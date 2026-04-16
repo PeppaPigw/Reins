@@ -17,6 +17,7 @@ def _grant_from_payload(payload: dict) -> GrantRef:
         issued_to=payload["issued_to"],
         ttl_seconds=payload["ttl_seconds"],
         approval_hash=payload.get("approval_hash"),
+        issued_at=payload.get("issued_at", 0.0),
         inherited=payload.get("inherited", False),
     )
 

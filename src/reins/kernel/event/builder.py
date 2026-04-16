@@ -11,6 +11,7 @@ The pipeline:
 
 from __future__ import annotations
 
+import time
 import ulid
 
 from reins.kernel.event.envelope import EventEnvelope
@@ -79,6 +80,7 @@ class EventBuilder:
                 "grant_id": grant_id, "capability": capability,
                 "scope": scope, "issued_to": issued_to,
                 "ttl_seconds": ttl_seconds, "approval_hash": approval_hash,
+                "issued_at": time.time(),
                 "inherited": inherited,
             },
             actor=Actor.policy,

@@ -28,6 +28,7 @@ def test_grant_issued_and_revoked() -> None:
         "issued_to": "model",
         "ttl_seconds": 60,
         "approval_hash": None,
+        "issued_at": 1234567890.0,
         "inherited": False,
     }
     issued = reduce(state, make_event("policy.grant_issued", grant))

@@ -74,4 +74,5 @@ class GrantRef:
     issued_to: str
     ttl_seconds: int
     approval_hash: str | None
+    issued_at: float  # Unix timestamp when grant was issued
     inherited: bool = False

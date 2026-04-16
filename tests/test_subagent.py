@@ -4,6 +4,8 @@ import pytest
 
 from reins.kernel.event.builder import EventBuilder
 from reins.kernel.event.journal import EventJournal
+from reins.kernel.reducer.reducer import reduce
+from reins.kernel.reducer.state import RunState
 from reins.kernel.snapshot.store import SnapshotStore
 from reins.kernel.types import GrantRef
 from reins.memory.checkpoint import CheckpointStore
@@ -118,10 +120,14 @@ async def test_inherited_grants_recorded(tmp_path):
         "parent",
         600,
     )
-    grant = GrantRef(
-        grant_id="g1", capability="fs.read", scope="workspace",
-        issued_to="parent", ttl_seconds=600, approval_hash=None,
-    )
+
+    # Rebuild parent state to get the actual grant with correct issued_at
+    parent_state = RunState(run_id="parent-7")
+    async for event in mgr._journal.read_from("parent-7"):
+        parent_state = reduce(parent_state, event)
+
+    grant = parent_state.active_grants[0]
+
     spec = SubagentSpec(
         objective="read files",
         parent_run_id="parent-7",
@@ -153,6 +159,7 @@ async def test_forged_inherited_grants_are_rejected(tmp_path):
         issued_to="parent",
         ttl_seconds=3600,
         approval_hash="fake",
+        issued_at=1234567890.0,
     )
 
     with pytest.raises(ValueError, match="inherited grants must be an active subset"):
