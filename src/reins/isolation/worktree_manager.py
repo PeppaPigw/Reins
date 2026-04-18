@@ -7,21 +7,20 @@ events to track worktree lifecycle.
 from __future__ import annotations
 
 import asyncio
+import re
 import shutil
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from reins.isolation.types import (
-    IsolationLevel,
-    MergeStrategy,
-    WorktreeConfig,
-    WorktreeState,
-)
+from reins.isolation.agent_registry import AgentRegistry
+from reins.isolation.types import MergeStrategy, WorktreeConfig, WorktreeState
+from reins.isolation.worktree_config import load_worktree_config
 from reins.kernel.event.envelope import EventEnvelope
 from reins.kernel.event.journal import EventJournal
 from reins.kernel.event.worktree_events import (
+    WORKTREE_VERIFIED,
     WORKTREE_CREATED,
     WORKTREE_MERGED,
     WORKTREE_REMOVED,
@@ -47,10 +46,14 @@ class WorktreeManager:
         journal: EventJournal,
         run_id: str,
         repo_root: Path | None = None,
+        worktree_config_path: Path | None = None,
+        agent_registry: AgentRegistry | None = None,
     ) -> None:
         self._journal = journal
         self._run_id = run_id
         self._repo_root = repo_root or Path.cwd()
+        self._worktree_config_path = worktree_config_path
+        self._agent_registry = agent_registry
 
         # Active worktrees: worktree_id -> WorktreeState
         self._worktrees: dict[str, WorktreeState] = {}
@@ -82,6 +85,7 @@ class WorktreeManager:
 
         # Ensure base directory exists
         config.worktree_base_dir.mkdir(parents=True, exist_ok=True)
+        worktree_created = False
 
         try:
             # Create git worktree
@@ -91,6 +95,7 @@ class WorktreeManager:
                 config.base_branch,
                 config.create_branch,
             )
+            worktree_created = True
 
             # Copy files
             for file_path in config.copy_files:
@@ -133,6 +138,7 @@ class WorktreeManager:
                 "config": {
                     "copy_files": config.copy_files,
                     "post_create_commands": config.post_create_commands,
+                    "verify_commands": config.verify_commands,
                     "cleanup_on_success": config.cleanup_on_success,
                 },
             }
@@ -149,7 +155,138 @@ class WorktreeManager:
             return state
 
         except Exception as e:
+            if worktree_created or worktree_path.exists():
+                try:
+                    await self._git_worktree_remove(worktree_path, force=True)
+                except Exception:
+                    pass
             raise WorktreeError(f"Failed to create worktree: {e}") from e
+
+    async def create_worktree_for_agent(
+        self,
+        agent_id: str,
+        task_id: str | None,
+        *,
+        branch_name: str,
+        base_branch: str,
+        create_branch: bool = True,
+        worktree_name: str | None = None,
+        cleanup_on_success: bool = True,
+        cleanup_on_failure: bool = False,
+        config_path: Path | None = None,
+        extra_copy_files: list[str] | None = None,
+    ) -> WorktreeState:
+        """Create an agent worktree using repo-level YAML defaults."""
+        template = load_worktree_config(
+            self._repo_root,
+            path=config_path or self._worktree_config_path,
+        )
+        runtime_config = template.build_runtime_config(
+            worktree_name=worktree_name or self._default_worktree_name(agent_id, task_id),
+            branch_name=branch_name,
+            base_branch=base_branch,
+            create_branch=create_branch,
+            cleanup_on_success=cleanup_on_success,
+            cleanup_on_failure=cleanup_on_failure,
+            extra_copy_files=self._default_identity_files() + list(extra_copy_files or []),
+        )
+
+        state = await self.create_worktree(
+            agent_id=agent_id,
+            task_id=task_id,
+            config=runtime_config,
+        )
+
+        try:
+            if task_id is not None:
+                await self._write_current_task_files(state.worktree_path, task_id)
+
+            registry = self._get_agent_registry(create_default=True)
+            if registry is not None:
+                await registry.register(
+                    agent_id=agent_id,
+                    worktree_id=state.worktree_id,
+                    task_id=task_id,
+                    status="running",
+                )
+
+            return state
+        except Exception as exc:
+            try:
+                await self.remove_worktree(
+                    state.worktree_id,
+                    force=True,
+                    removed_by="system",
+                    reason=f"agent worktree setup failed: {exc}",
+                )
+            except Exception:
+                pass
+            raise WorktreeError(f"Failed to create agent worktree: {exc}") from exc
+
+    async def verify_worktree(self, worktree_id: str) -> list[dict[str, Any]]:
+        """Run configured verification commands for a worktree."""
+        state = self._worktrees.get(worktree_id)
+        if not state:
+            raise WorktreeError(f"Worktree not found: {worktree_id}")
+
+        registry = self._get_agent_registry(create_default=False)
+        if registry is not None:
+            await registry.heartbeat(state.agent_id, status="verifying")
+
+        results: list[dict[str, Any]] = []
+        success = True
+        for command in state.config.verify_commands:
+            result = await self._run_command_capture(command, cwd=state.worktree_path)
+            results.append(result)
+            if result["returncode"] != 0:
+                success = False
+                break
+
+        payload = {
+            "worktree_id": worktree_id,
+            "verified_at": datetime.now(UTC).isoformat(),
+            "success": success,
+            "results": results,
+        }
+        await self._journal.append(
+            EventEnvelope(
+                run_id=self._run_id,
+                actor=Actor.runtime,
+                type=WORKTREE_VERIFIED,
+                payload=payload,
+            )
+        )
+
+        if registry is not None:
+            await registry.heartbeat(
+                state.agent_id,
+                status="verified" if success else "verify_failed",
+            )
+
+        if not success:
+            failed = results[-1]
+            raise WorktreeError(
+                f"Verification failed for {worktree_id}: {failed['command']}\n"
+                f"Stderr: {failed['stderr']}"
+            )
+
+        return results
+
+    async def cleanup_agent_worktree(
+        self,
+        worktree_id: str,
+        *,
+        force: bool = False,
+        removed_by: str = "system",
+        reason: str | None = None,
+    ) -> None:
+        """Remove a worktree and unregister its agent if tracked."""
+        await self.remove_worktree(
+            worktree_id,
+            force=force,
+            removed_by=removed_by,
+            reason=reason,
+        )
 
     async def remove_worktree(
         self,
@@ -197,6 +334,13 @@ class WorktreeManager:
             )
 
             await self._journal.append(event)
+
+            registry = self._get_agent_registry(create_default=False)
+            if registry is not None:
+                try:
+                    await registry.unregister(state.agent_id, final_status="removed")
+                except Exception:
+                    pass
 
             # Remove from active worktrees
             del self._worktrees[worktree_id]
@@ -382,7 +526,7 @@ class WorktreeManager:
         if create_branch:
             cmd.extend(["-b", branch])
 
-        cmd.extend([str(path), base_branch])
+        cmd.extend([str(path), base_branch if create_branch else branch])
 
         await self._run_command(" ".join(cmd), cwd=self._repo_root)
 
@@ -433,6 +577,18 @@ class WorktreeManager:
         dest.parent.mkdir(parents=True, exist_ok=True)
         await asyncio.to_thread(shutil.copy2, src, dest)
 
+    async def _write_current_task_files(self, worktree_path: Path, task_id: str) -> None:
+        """Write current-task markers in the worktree for Reins and Trellis hooks."""
+        task_pointer = self._resolve_task_pointer(task_id)
+        for marker in (".reins/.current-task", ".trellis/.current-task"):
+            target = worktree_path / marker
+            target.parent.mkdir(parents=True, exist_ok=True)
+            await asyncio.to_thread(
+                target.write_text,
+                f"{task_pointer}\n",
+                "utf-8",
+            )
+
     async def _run_command(self, command: str, cwd: Path) -> str:
         """Run a shell command."""
         proc = await asyncio.create_subprocess_shell(
@@ -452,3 +608,53 @@ class WorktreeManager:
             )
 
         return stdout.decode()
+
+    async def _run_command_capture(self, command: str, cwd: Path) -> dict[str, Any]:
+        """Run a shell command and capture output without raising."""
+        proc = await asyncio.create_subprocess_shell(
+            command,
+            cwd=cwd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        return {
+            "command": command,
+            "returncode": proc.returncode,
+            "stdout": stdout.decode(),
+            "stderr": stderr.decode(),
+        }
+
+    def _get_agent_registry(self, create_default: bool) -> AgentRegistry | None:
+        if self._agent_registry is not None:
+            return self._agent_registry
+
+        default_path = self._repo_root / ".reins" / "registry.json"
+        if create_default or default_path.exists():
+            self._agent_registry = AgentRegistry(
+                path=default_path,
+                journal=self._journal,
+                run_id=self._run_id,
+            )
+        return self._agent_registry
+
+    def _default_identity_files(self) -> list[str]:
+        return [".reins/.developer", ".trellis/.developer"]
+
+    def _default_worktree_name(self, agent_id: str, task_id: str | None) -> str:
+        base = task_id or agent_id
+        normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", base).strip("-")
+        normalized = normalized or "agent-worktree"
+        suffix = re.sub(r"[^A-Za-z0-9._-]+", "-", agent_id[:8]).strip("-")
+        suffix = suffix or "agent"
+        return f"{normalized}-{suffix}"
+
+    def _resolve_task_pointer(self, task_id: str) -> str:
+        candidates = (
+            Path(".reins/tasks") / task_id,
+            Path(".trellis/tasks") / task_id,
+        )
+        for candidate in candidates:
+            if (self._repo_root / candidate).exists():
+                return str(candidate)
+        return str(candidates[0])

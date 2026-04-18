@@ -220,7 +220,7 @@ class SubagentManager:
         if handle.worktree_id and self._worktree_manager:
             worktree_state = self._worktree_manager.get_worktree(handle.worktree_id)
             if worktree_state and worktree_state.config.cleanup_on_success:
-                await self._worktree_manager.remove_worktree(
+                await self._worktree_manager.cleanup_agent_worktree(
                     handle.worktree_id,
                     force=False,
                     removed_by="subagent",
@@ -261,7 +261,7 @@ class SubagentManager:
         if handle.worktree_id and self._worktree_manager:
             worktree_state = self._worktree_manager.get_worktree(handle.worktree_id)
             if worktree_state and worktree_state.config.cleanup_on_failure:
-                await self._worktree_manager.remove_worktree(
+                await self._worktree_manager.cleanup_agent_worktree(
                     handle.worktree_id,
                     force=True,  # Force removal on failure
                     removed_by="subagent",
@@ -296,7 +296,7 @@ class SubagentManager:
         # Clean up worktree if it exists (always force on abort)
         if handle.worktree_id and self._worktree_manager:
             try:
-                await self._worktree_manager.remove_worktree(
+                await self._worktree_manager.cleanup_agent_worktree(
                     handle.worktree_id,
                     force=True,
                     removed_by="subagent",

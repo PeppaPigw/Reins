@@ -92,7 +92,55 @@ class WorktreeMergedEvent:
     """Commit SHA of the merge (if available)"""
 
 
+@dataclass(frozen=True)
+class WorktreeVerifiedEvent:
+    """Event emitted when a worktree has been verified."""
+
+    worktree_id: str
+    verified_at: datetime
+    success: bool
+    results: list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class AgentRegisteredEvent:
+    """Event emitted when an active agent is registered."""
+
+    agent_id: str
+    worktree_id: str
+    task_id: str | None
+    status: str
+    started_at: datetime
+    last_heartbeat: datetime
+
+
+@dataclass(frozen=True)
+class AgentUnregisteredEvent:
+    """Event emitted when an active agent is removed from the registry."""
+
+    agent_id: str
+    worktree_id: str
+    task_id: str | None
+    final_status: str
+    unregistered_at: datetime
+
+
+@dataclass(frozen=True)
+class AgentHeartbeatUpdatedEvent:
+    """Event emitted when an active agent sends a heartbeat."""
+
+    agent_id: str
+    worktree_id: str
+    task_id: str | None
+    status: str
+    last_heartbeat: datetime
+
+
 # Event type constants for registration
 WORKTREE_CREATED = "worktree.created"
 WORKTREE_REMOVED = "worktree.removed"
 WORKTREE_MERGED = "worktree.merged"
+WORKTREE_VERIFIED = "worktree.verified"
+AGENT_REGISTERED = "agent.registered"
+AGENT_UNREGISTERED = "agent.unregistered"
+AGENT_HEARTBEAT_UPDATED = "agent.heartbeat_updated"

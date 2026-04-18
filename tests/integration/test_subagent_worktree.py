@@ -7,8 +7,9 @@ Tests the full workflow:
 4. Test failure and abort scenarios
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from reins.isolation.types import IsolationLevel, WorktreeConfig
 from reins.isolation.worktree_manager import WorktreeManager
@@ -354,8 +355,6 @@ async def test_worktree_required_validation(subagent_manager):
 @pytest.mark.asyncio
 async def test_worktree_manager_required_validation():
     """Test that worktree isolation requires WorktreeManager in SubagentManager."""
-    from pathlib import Path
-
     # Create subagent manager WITHOUT worktree manager
     journal = EventJournal(Path("/tmp/test-journal.jsonl"))
     snapshot_store = SnapshotStore(Path("/tmp/snapshots"))

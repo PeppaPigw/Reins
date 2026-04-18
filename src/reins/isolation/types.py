@@ -62,6 +62,9 @@ class WorktreeConfig:
     post_create_commands: list[str] = field(default_factory=list)
     """Shell commands to run after worktree creation (e.g., ['pnpm install'])"""
 
+    verify_commands: list[str] = field(default_factory=list)
+    """Shell commands to verify a worktree after creation (e.g., ['ruff check'])"""
+
     cleanup_on_success: bool = True
     """Whether to remove worktree after successful completion"""
 
@@ -95,8 +98,9 @@ class WorktreeConfig:
             branch_name=branch_name,
             base_branch="main",
             create_branch=True,
-            copy_files=[".reins/.developer"],
+            copy_files=[".reins/.developer", ".trellis/.developer"],
             post_create_commands=[],
+            verify_commands=[],
             cleanup_on_success=True,
             cleanup_on_failure=False,
         )

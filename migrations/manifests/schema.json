@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "required": ["version", "migrations"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "migrations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "description"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["rename", "delete", "safe-file-delete", "rename-dir"]
+          },
+          "from_path": {
+            "type": ["string", "null"]
+          },
+          "to_path": {
+            "type": ["string", "null"]
+          },
+          "allowed_hashes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
