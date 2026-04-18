@@ -14,6 +14,7 @@ Key Responsibilities:
 from __future__ import annotations
 
 import asyncio
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, AsyncIterator
@@ -122,7 +123,7 @@ class SubagentManager:
                 agent_id=agent_id,
                 task_id=task_id,
                 branch_name=f"agent/{agent_type}/{task_id}",
-                base_branch="main",
+                base_branch=self._resolve_base_branch(),
             )
 
         # 3. Register agent in registry
@@ -131,6 +132,7 @@ class SubagentManager:
             task_id=task_id,
             run_id=run_id,
             worktree_path=str(worktree_state.worktree_path) if worktree_state else None,
+            agent_id=agent_id,
         )
 
         # 4. Update agent status to running
@@ -211,18 +213,35 @@ class SubagentManager:
         Yields:
             EventEnvelope for each relevant event
         """
-        # Stream events from journal for this run
-        async for event in self.journal.read_from(handle.run_id):
-            # Filter by event types if specified
-            if event_types and event.type not in event_types:
-                continue
+        from_seq = 0
+        terminal_events = {
+            "orchestrator.subagent_completed",
+            "orchestrator.subagent_failed",
+        }
 
-            # Check if event is related to this agent
-            payload = event.payload
-            if isinstance(payload, dict):
-                event_agent_id = payload.get("agent_id")
-                if event_agent_id == handle.agent_id:
-                    yield event
+        while True:
+            saw_event = False
+            async for event in self.journal.read_from(handle.run_id, from_seq=from_seq):
+                saw_event = True
+                from_seq = max(from_seq, event.seq + 1)
+
+                if event_types and event.type not in event_types:
+                    continue
+
+                payload = event.payload
+                if not isinstance(payload, dict):
+                    continue
+
+                if payload.get("agent_id") != handle.agent_id:
+                    continue
+
+                yield event
+
+                if event.type in terminal_events:
+                    return
+
+            if not saw_event:
+                await asyncio.sleep(0.05)
 
     async def collect_results(
         self,
@@ -271,12 +290,21 @@ class SubagentManager:
                     # Collect result from context hook
                     result_output = payload.get("output", {})
 
-                    # Call after_subagent_complete hook
-                    await self.context_hook.after_subagent_complete(
-                        agent_type=handle.agent_type,
-                        run_id=handle.run_id,
-                        result=result_output,
-                    )
+                    if status == "completed":
+                        await self.context_hook.after_subagent_complete(
+                            agent_type=handle.agent_type,
+                            run_id=handle.run_id,
+                            result=result_output,
+                        )
+                    else:
+                        await self.context_hook.on_error(
+                            agent_type=handle.agent_type,
+                            run_id=handle.run_id,
+                            error=RuntimeError(
+                                error_message
+                                or f"Subagent {handle.agent_id} failed"
+                            ),
+                        )
 
                     return AgentResult(
                         agent_id=handle.agent_id,
@@ -322,7 +350,8 @@ class SubagentManager:
         # 1. Remove worktree if requested
         if remove_worktree and handle.worktree_state:
             await self.worktree_manager.cleanup_agent_worktree(
-                handle.worktree_state.worktree_id
+                handle.worktree_state.worktree_id,
+                force=True,
             )
 
         # 2. Remove agent from registry
@@ -400,3 +429,19 @@ class SubagentManager:
             output={},
             error_message=str(error),
         )
+
+    def _resolve_base_branch(self) -> str:
+        """Return the current repo branch, falling back to ``main``."""
+        try:
+            result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                cwd=self.repo_root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            return "main"
+
+        branch = result.stdout.strip()
+        return branch or "main"

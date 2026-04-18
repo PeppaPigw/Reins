@@ -116,6 +116,7 @@ class AgentRegistry:
         run_id: str,
         worktree_path: str | None = None,
         pid: int | None = None,
+        agent_id: str | None = None,
     ) -> str:
         """Register a new agent.
 
@@ -125,11 +126,12 @@ class AgentRegistry:
             run_id: Run ID for event emission
             worktree_path: Optional worktree path
             pid: Optional process ID
+            agent_id: Optional precomputed agent ID to persist
 
         Returns:
-            Generated agent ID
+            Persisted agent ID
         """
-        agent_id = f"agent-{ulid.new()}"
+        agent_id = agent_id or f"agent-{ulid.new()}"
 
         agent = AgentMetadata(
             agent_id=agent_id,
