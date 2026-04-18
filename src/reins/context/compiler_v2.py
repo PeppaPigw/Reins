@@ -252,6 +252,107 @@ class ContextCompilerV2:
 
         return sections, dropped_ids
 
+    def enrich_context(
+        self,
+        base_manifest: dict[str, Any] | ContextAssemblyManifest,
+        trigger: str,
+        enrichment_query: dict[str, Any],
+        granted_capabilities: set[str],
+        token_budget: TokenBudget | None = None,
+        task_state: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Enrich existing context with additional spec_shards.
+
+        This is called when state changes (run_phase, capability grant, task switch)
+        to add relevant spec_shards to the context.
+
+        Args:
+            base_manifest: Current context manifest (dict or ContextAssemblyManifest)
+            trigger: Trigger type ("run_phase_change", "capability_grant", "task_switch")
+            enrichment_query: Query parameters for enrichment
+            granted_capabilities: Current granted capabilities
+            token_budget: Optional token budget (uses base manifest's budget if None)
+            task_state: Optional task state
+
+        Returns:
+            Enriched context manifest (as dict)
+        """
+        # Convert base_manifest to dict if needed
+        if isinstance(base_manifest, ContextAssemblyManifest):
+            from reins.serde import to_primitive
+            base_dict = to_primitive(base_manifest)
+        else:
+            base_dict = base_manifest
+
+        # Get budget from base or use provided
+        if token_budget is None:
+            budget_dict = base_dict.get("budget", {})
+            token_budget = TokenBudget(
+                total=budget_dict.get("total", 10000),
+                standing_law=budget_dict.get("standing_law", 4000),
+                task_contract=budget_dict.get("task_contract", 2000),
+                spec_shards=budget_dict.get("spec_shards", 3000),
+                reserve=budget_dict.get("reserve", 1000),
+            )
+
+        # Build query for spec_shards
+        query = SpecQuery(
+            scope=base_dict.get("query_params", {}).get("scope", "workspace"),
+            task_type=enrichment_query.get("task_type"),
+            run_phase=enrichment_query.get("run_phase"),
+            actor_type=enrichment_query.get("actor_type"),
+            path=enrichment_query.get("path"),
+            granted_capabilities=granted_capabilities,
+            visibility_tier=1,
+        )
+
+        # Resolve spec_shards
+        all_resolved = self._projection.resolve(query)
+        spec_shard_specs = [s for s in all_resolved if s.spec_type == "spec_shard"]
+
+        # Allocate tokens for spec_shards
+        spec_shard_sections, spec_shard_dropped = self._allocate_for_type(
+            spec_shard_specs, token_budget.spec_shards
+        )
+
+        # Update token breakdown
+        token_breakdown = base_dict.get("token_breakdown", {}).copy()
+        token_breakdown["spec_shards"] = sum(s.token_count for s in spec_shard_sections)
+
+        # Calculate new total
+        total_tokens = (
+            token_breakdown.get("standing_law", 0)
+            + token_breakdown.get("task_contract", 0)
+            + token_breakdown["spec_shards"]
+        )
+
+        # Convert spec_shard_sections to dicts
+        from reins.serde import to_primitive
+        spec_shard_dicts = [to_primitive(s) for s in spec_shard_sections]
+
+        # Build enriched manifest
+        enriched = base_dict.copy()
+        enriched["spec_shards"] = spec_shard_dicts
+        enriched["total_tokens"] = total_tokens
+        enriched["token_breakdown"] = token_breakdown
+        enriched["dropped_spec_ids"] = (
+            base_dict.get("dropped_spec_ids", []) + spec_shard_dropped
+        )
+
+        # Add enrichment audit trail
+        if "enrichment_history" not in enriched:
+            enriched["enrichment_history"] = []
+        enriched["enrichment_history"].append(
+            {
+                "trigger": trigger,
+                "query": enrichment_query,
+                "added_spec_ids": [s.spec_id for s in spec_shard_sections],
+                "dropped_spec_ids": spec_shard_dropped,
+            }
+        )
+
+        return enriched
+
     def _truncate_content(
         self, content: str, original_tokens: int, target_tokens: int
     ) -> str:
