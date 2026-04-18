@@ -6,6 +6,7 @@ from typing import Iterable
 import typer
 
 from reins.cli import utils
+from reins.context.compiler import ContextCompiler
 from reins.kernel.event.builder import EventBuilder
 from reins.task.context_jsonl import ContextJSONL, ContextMessage
 
@@ -67,22 +68,21 @@ def _load_task_metadata(repo_root: Path, task_id: str) -> dict:
 
 
 def _relevant_spec_files(repo_root: Path, context_type: str, package: str | None) -> list[Path]:
+    compiler = ContextCompiler()
     spec_root = repo_root / ".reins" / "spec"
-    candidates: list[Path] = []
-
-    if context_type in {"backend", "fullstack"}:
-        candidates.append(spec_root / "backend" / "index.md")
-    if context_type in {"frontend", "fullstack"}:
-        candidates.append(spec_root / "frontend" / "index.md")
-    candidates.append(spec_root / "guides" / "index.md")
-
-    if package:
-        package_dir = spec_root / package
-        candidates.append(package_dir / "index.md")
-        for layer_index in sorted(package_dir.glob("*/index.md")):
-            candidates.append(layer_index)
-
-    return [path for path in candidates if path.exists()]
+    sources = compiler.resolve_spec_sources(spec_root, task_type=context_type, package=package)
+    files: list[Path] = []
+    seen: set[Path] = set()
+    for source in sources:
+        if not source.path:
+            continue
+        source_path = Path(source.path)
+        index_path = source_path / "index.md" if source_path.is_dir() else source_path
+        if not index_path.exists() or index_path in seen:
+            continue
+        seen.add(index_path)
+        files.append(index_path)
+    return files
 
 
 def _append_messages(path: Path, messages: Iterable[ContextMessage]) -> None:

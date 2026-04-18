@@ -8,11 +8,11 @@ This replaces the old compiler with a spec-based system that:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from reins.context.spec_projection import ContextSpecProjection, ResolvedSpec, SpecQuery
-from reins.context.token_budget import TokenBudget, allocate_tokens, estimate_tokens
+from reins.context.token_budget import TokenBudget, allocate_tokens
 
 
 @dataclass(frozen=True)

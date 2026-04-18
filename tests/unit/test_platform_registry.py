@@ -1,358 +1,228 @@
-"""Tests for platform registry."""
+"""Tests for the platform registry and detection logic."""
+
+from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 
 from reins.platform import (
     ContextFormat,
+    HookType,
     PlatformCapabilities,
     PlatformConfig,
     PlatformRegistry,
     PlatformType,
-    HookType,
+    detect_platform,
+    detect_platforms,
     get_platform,
     list_platforms,
-    register_platform,
 )
 
 
-def test_platform_capabilities_defaults():
-    """Test default platform capabilities."""
+EXPECTED_BUILTINS = {
+    PlatformType.CLAUDE_CODE,
+    PlatformType.CURSOR,
+    PlatformType.CODEX,
+    PlatformType.WINDSURF,
+    PlatformType.AIDER,
+    PlatformType.CONTINUE,
+    PlatformType.CLINE,
+    PlatformType.ZED_AI,
+    PlatformType.GITHUB_COPILOT,
+    PlatformType.SUPERMAVEN,
+    PlatformType.CODY,
+    PlatformType.TABNINE,
+    PlatformType.AMAZON_Q,
+    PlatformType.PIECES,
+}
+
+
+def test_platform_capabilities_defaults() -> None:
     caps = PlatformCapabilities()
 
     assert caps.supports_hooks is False
     assert caps.supports_agents is False
     assert caps.supports_worktrees is False
     assert caps.supports_mcp is False
-    assert caps.supports_tools is False
-    assert caps.supports_streaming is False
-    assert caps.supports_context_injection is False
-    assert caps.max_context_tokens == 200_000
     assert caps.supported_hooks == []
+    assert caps.preferred_context_format == ContextFormat.MARKDOWN
 
 
-def test_platform_config_paths():
-    """Test platform config path properties."""
+def test_platform_config_paths() -> None:
     config = PlatformConfig(
         platform_type=PlatformType.CLAUDE_CODE,
         name="Claude Code",
         config_dir=".claude",
+        template_dirs=("claude",),
         capabilities=PlatformCapabilities(),
         hook_dir="hooks",
         agent_dir="agents",
         command_dir="commands",
         settings_file="settings.json",
+        detection_markers=(".claude/settings.json",),
     )
 
-    assert config.hook_path is not None
-    assert str(config.hook_path) == ".claude/hooks"
-
-    assert config.agent_path is not None
-    assert str(config.agent_path) == ".claude/agents"
-
-    assert config.command_path is not None
-    assert str(config.command_path) == ".claude/commands"
-
-    assert config.settings_path is not None
-    assert str(config.settings_path) == ".claude/settings.json"
-
-
-def test_platform_config_no_paths():
-    """Test platform config without optional paths."""
-    config = PlatformConfig(
-        platform_type=PlatformType.CURSOR,
-        name="Cursor",
-        config_dir=".cursor",
-        capabilities=PlatformCapabilities(),
+    assert config.slug == "claude-code"
+    assert config.hook_path == Path(".claude/hooks")
+    assert config.agent_path == Path(".claude/agents")
+    assert config.command_path == Path(".claude/commands")
+    assert config.settings_path == Path(".claude/settings.json")
+    assert config.all_detection_paths == (
+        Path(".claude"),
+        Path(".claude/settings.json"),
     )
 
-    assert config.hook_path is None
-    assert config.agent_path is None
-    assert config.command_path is None
-    assert config.settings_path is None
 
-
-def test_registry_builtin_platforms():
-    """Test that built-in platforms are registered."""
+def test_registry_contains_all_builtin_platforms() -> None:
     registry = PlatformRegistry()
 
-    # Check Claude Code
-    claude = registry.get(PlatformType.CLAUDE_CODE)
-    assert claude is not None
-    assert claude.name == "Claude Code"
-    assert claude.config_dir == ".claude"
-    assert claude.capabilities.supports_hooks is True
-    assert claude.capabilities.supports_agents is True
-    assert claude.capabilities.supports_worktrees is True
-    assert claude.capabilities.supports_mcp is True
-
-    # Check Codex
-    codex = registry.get(PlatformType.CODEX)
-    assert codex is not None
-    assert codex.name == "OpenAI Codex"
-    assert codex.config_dir == ".codex"
-
-    # Check Cursor
-    cursor = registry.get(PlatformType.CURSOR)
-    assert cursor is not None
-    assert cursor.name == "Cursor IDE"
-    assert cursor.capabilities.supports_hooks is False
+    platform_types = {platform.platform_type for platform in registry.list_all()}
+    assert platform_types == EXPECTED_BUILTINS
 
 
-def test_registry_list_all():
-    """Test listing all platforms."""
-    registry = PlatformRegistry()
-    platforms = registry.list_all()
-
-    assert len(platforms) >= 6  # At least 6 built-in platforms
-
-    platform_types = {p.platform_type for p in platforms}
-    assert PlatformType.CLAUDE_CODE in platform_types
-    assert PlatformType.CODEX in platform_types
-    assert PlatformType.CURSOR in platform_types
-
-
-def test_registry_list_with_capability():
-    """Test filtering platforms by capability."""
+@pytest.mark.parametrize(
+    ("platform_name", "config_dir", "cli_flag", "supports_hooks", "supports_agents", "supports_mcp"),
+    [
+        ("claude-code", ".claude", "claude", True, True, True),
+        ("cursor", ".cursor", "cursor", False, False, False),
+        ("codex", ".codex", "codex", True, True, True),
+        ("windsurf", ".windsurf", "windsurf", False, False, False),
+        ("aider", ".aider", "aider", True, False, False),
+        ("continue", ".continue", "continue", False, False, True),
+        ("cline", ".cline", "cline", False, True, True),
+        ("zed-ai", ".zed", "zed", False, False, False),
+        ("github-copilot", ".github", "copilot", False, False, False),
+        ("supermaven", ".supermaven", "supermaven", False, False, False),
+        ("cody", ".cody", "cody", False, False, False),
+        ("tabnine", ".tabnine", "tabnine", False, False, False),
+        ("amazon-q", ".amazonq", "amazon-q", False, False, False),
+        ("pieces", ".pieces", "pieces", False, False, True),
+    ],
+)
+def test_builtin_platform_metadata(
+    platform_name: str,
+    config_dir: str,
+    cli_flag: str,
+    supports_hooks: bool,
+    supports_agents: bool,
+    supports_mcp: bool,
+) -> None:
     registry = PlatformRegistry()
 
-    # Platforms with hooks
-    with_hooks = registry.list_with_capability("supports_hooks")
-    assert len(with_hooks) > 0
-    assert all(p.capabilities.supports_hooks for p in with_hooks)
-
-    # Platforms with agents
-    with_agents = registry.list_with_capability("supports_agents")
-    assert len(with_agents) > 0
-    assert all(p.capabilities.supports_agents for p in with_agents)
-
-    # Platforms with worktrees
-    with_worktrees = registry.list_with_capability("supports_worktrees")
-    assert len(with_worktrees) > 0
-    assert all(p.capabilities.supports_worktrees for p in with_worktrees)
+    platform = registry.get(platform_name)
+    assert platform is not None
+    assert platform.config_dir == config_dir
+    assert platform.cli_flag == cli_flag
+    assert platform.template_dirs
+    assert platform.capabilities.supports_hooks is supports_hooks
+    assert platform.capabilities.supports_agents is supports_agents
+    assert platform.capabilities.supports_mcp is supports_mcp
 
 
-def test_registry_list_with_hook():
-    """Test filtering platforms by hook type."""
+def test_registry_lookup_by_name_and_cli_flag() -> None:
     registry = PlatformRegistry()
 
-    # Platforms with session_start hook
-    with_session_start = registry.list_with_hook(HookType.SESSION_START)
-    assert len(with_session_start) > 0
+    assert registry.get("claude") == registry.get(PlatformType.CLAUDE_CODE)
+    assert registry.get("Claude Code") == registry.get(PlatformType.CLAUDE_CODE)
+    assert registry.get_by_cli_flag("codex") == registry.get(PlatformType.CODEX)
+    assert registry.get("unknown-platform") is None
+
+
+def test_registry_filtering_helpers() -> None:
+    registry = PlatformRegistry()
+
+    hook_platforms = registry.list_with_capability("supports_hooks")
+    assert hook_platforms
+    assert all(platform.capabilities.supports_hooks for platform in hook_platforms)
+
+    jsonl_platforms = registry.list_with_jsonl_support()
+    assert any(platform.platform_type is PlatformType.CLAUDE_CODE for platform in jsonl_platforms)
+    assert all(platform.capabilities.supports_jsonl_context for platform in jsonl_platforms)
+
+    session_start_platforms = registry.list_with_hook(HookType.SESSION_START)
+    assert session_start_platforms
     assert all(
-        HookType.SESSION_START in p.capabilities.supported_hooks
-        for p in with_session_start
-    )
-
-    # Platforms with context_inject hook
-    with_context_inject = registry.list_with_hook(HookType.CONTEXT_INJECT)
-    assert len(with_context_inject) > 0
-    assert all(
-        HookType.CONTEXT_INJECT in p.capabilities.supported_hooks
-        for p in with_context_inject
+        HookType.SESSION_START in platform.capabilities.supported_hooks
+        for platform in session_start_platforms
     )
 
 
-def test_registry_custom_platform():
-    """Test registering a custom platform."""
+@pytest.mark.parametrize(
+    ("platform_name", "marker"),
+    [
+        ("claude", ".claude/settings.json"),
+        ("cursor", ".cursorrules"),
+        ("codex", ".codex/config.yaml"),
+        ("windsurf", ".windsurf/settings.json"),
+        ("aider", ".aider.conf.yml"),
+        ("continue", ".continue/config.json"),
+        ("cline", ".cline/config.json"),
+        ("zed", ".zed/settings.json"),
+        ("copilot", ".github/copilot-instructions.md"),
+        ("supermaven", ".supermaven/config.json"),
+        ("cody", ".cody/config.json"),
+        ("tabnine", ".tabnine/config.json"),
+        ("amazon-q", ".amazonq/settings.json"),
+        ("pieces", ".pieces/config.json"),
+    ],
+)
+def test_platform_detection_by_marker(tmp_path: Path, platform_name: str, marker: str) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    marker_path = repo_root / marker
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    marker_path.write_text("configured\n", encoding="utf-8")
+
+    detected = detect_platform(repo_root)
+    assert detected is not None
+    assert detected == get_platform(platform_name)
+
+    detected_all = detect_platforms(repo_root)
+    assert detected_all
+    assert detected_all[0] == detected
+
+
+def test_detect_platform_prefers_higher_signal_match(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+
+    (repo_root / ".cursor").mkdir()
+    (repo_root / ".claude" / "hooks").mkdir(parents=True)
+    (repo_root / ".claude" / "settings.json").write_text("{}", encoding="utf-8")
+
+    detected = detect_platform(repo_root)
+    assert detected is not None
+    assert detected.platform_type is PlatformType.CLAUDE_CODE
+
+    detected_all = detect_platforms(repo_root)
+    assert [platform.platform_type for platform in detected_all[:2]] == [
+        PlatformType.CLAUDE_CODE,
+        PlatformType.CURSOR,
+    ]
+
+
+def test_detect_platform_returns_none_when_no_markers_exist(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+
+    assert detect_platform(repo_root) is None
+    assert detect_platforms(repo_root) == []
+
+
+def test_local_and_global_registry_helpers_remain_usable() -> None:
     registry = PlatformRegistry()
-
-    custom_config = PlatformConfig(
+    custom = PlatformConfig(
         platform_type=PlatformType.CUSTOM,
         name="Custom Platform",
         config_dir=".custom",
-        capabilities=PlatformCapabilities(
-            supports_hooks=True,
-            supports_agents=True,
-            max_context_tokens=50_000,
-        ),
-        hook_dir="hooks",
-        metadata={"custom_field": "custom_value"},
+        template_dirs=("custom",),
+        capabilities=PlatformCapabilities(supports_hooks=True),
+        cli_flag="custom",
     )
+    registry.register(custom)
 
-    registry.register(custom_config)
-
-    retrieved = registry.get(PlatformType.CUSTOM)
-    assert retrieved is not None
-    assert retrieved.name == "Custom Platform"
-    assert retrieved.capabilities.max_context_tokens == 50_000
-    assert retrieved.metadata["custom_field"] == "custom_value"
-
-
-def test_global_functions():
-    """Test global registry functions."""
-    # Get platform
-    claude = get_platform(PlatformType.CLAUDE_CODE)
-    assert claude is not None
-    assert claude.name == "Claude Code"
-
-    # List platforms
-    platforms = list_platforms()
-    assert len(platforms) >= 6
-
-    # Register custom platform
-    custom_config = PlatformConfig(
-        platform_type=PlatformType.CUSTOM,
-        name="Test Custom",
-        config_dir=".test",
-        capabilities=PlatformCapabilities(),
-    )
-    register_platform(custom_config)
-
-    retrieved = get_platform(PlatformType.CUSTOM)
-    assert retrieved is not None
-    assert retrieved.name == "Test Custom"
-
-
-def test_claude_code_capabilities():
-    """Test Claude Code specific capabilities."""
-    claude = get_platform(PlatformType.CLAUDE_CODE)
-    assert claude is not None
-
-    caps = claude.capabilities
-    assert caps.supports_hooks is True
-    assert caps.supports_agents is True
-    assert caps.supports_worktrees is True
-    assert caps.supports_mcp is True
-    assert caps.supports_tools is True
-    assert caps.supports_streaming is True
-    assert caps.supports_context_injection is True
-    assert caps.max_context_tokens == 200_000
-
-    # Check supported hooks
-    assert HookType.SESSION_START in caps.supported_hooks
-    assert HookType.SESSION_END in caps.supported_hooks
-    assert HookType.SUBAGENT_SPAWN in caps.supported_hooks
-    assert HookType.CONTEXT_INJECT in caps.supported_hooks
-    assert HookType.TOOL_CALL in caps.supported_hooks
-
-
-def test_codex_capabilities():
-    """Test Codex specific capabilities."""
-    codex = get_platform(PlatformType.CODEX)
-    assert codex is not None
-
-    caps = codex.capabilities
-    assert caps.supports_hooks is True
-    assert caps.supports_agents is True
-    assert caps.supports_worktrees is True
-    assert caps.supports_mcp is True
-    assert caps.max_context_tokens == 128_000
-
-    # Check supported hooks
-    assert HookType.SESSION_START in caps.supported_hooks
-    assert HookType.SUBAGENT_SPAWN in caps.supported_hooks
-    assert HookType.CONTEXT_INJECT in caps.supported_hooks
-
-
-def test_cursor_capabilities():
-    """Test Cursor specific capabilities."""
-    cursor = get_platform(PlatformType.CURSOR)
-    assert cursor is not None
-
-    caps = cursor.capabilities
-    assert caps.supports_hooks is False
-    assert caps.supports_agents is False
-    assert caps.supports_worktrees is False
-    assert caps.supports_mcp is False
-    assert caps.supports_tools is True
-    assert caps.supports_streaming is True
-    assert caps.max_context_tokens == 100_000
-
-    # No hooks supported
-    assert len(caps.supported_hooks) == 0
-
-
-def test_platform_metadata():
-    """Test platform metadata fields."""
-    claude = get_platform(PlatformType.CLAUDE_CODE)
-    assert claude is not None
-    assert claude.cli_flag == "claude"
-    assert claude.metadata["has_python_hooks"] is True
-    assert claude.metadata["supports_slash_commands"] is True
-
-    cursor = get_platform(PlatformType.CURSOR)
-    assert cursor is not None
-    assert cursor.cli_flag == "cursor"
-    assert cursor.metadata["ide_integration"] is True
-
-
-def test_registry_get_by_cli_flag():
-    """Test getting platform by CLI flag."""
-    registry = PlatformRegistry()
-
-    # Get by CLI flag
-    claude = registry.get_by_cli_flag("claude")
-    assert claude is not None
-    assert claude.platform_type == PlatformType.CLAUDE_CODE
-
-    codex = registry.get_by_cli_flag("codex")
-    assert codex is not None
-    assert codex.platform_type == PlatformType.CODEX
-
-    # Non-existent flag
-    none_platform = registry.get_by_cli_flag("nonexistent")
-    assert none_platform is None
-
-
-def test_registry_list_with_jsonl_support():
-    """Test filtering platforms by JSONL support."""
-    registry = PlatformRegistry()
-
-    with_jsonl = registry.list_with_jsonl_support()
-    assert len(with_jsonl) > 0
-    assert all(p.capabilities.supports_jsonl_context for p in with_jsonl)
-
-    # Claude Code and Codex should support JSONL
-    platform_types = {p.platform_type for p in with_jsonl}
-    assert PlatformType.CLAUDE_CODE in platform_types
-    assert PlatformType.CODEX in platform_types
-
-
-def test_platform_context_format():
-    """Test platform context format preferences."""
-    claude = get_platform(PlatformType.CLAUDE_CODE)
-    assert claude is not None
-    assert claude.capabilities.supports_jsonl_context is True
-    assert claude.capabilities.preferred_context_format == ContextFormat.JSONL
-
-    cursor = get_platform(PlatformType.CURSOR)
-    assert cursor is not None
-    assert cursor.capabilities.supports_jsonl_context is False
-    assert cursor.capabilities.preferred_context_format == ContextFormat.MARKDOWN
-
-
-def test_platform_capabilities_jsonl():
-    """Test JSONL capability in platform capabilities."""
-    caps_with_jsonl = PlatformCapabilities(
-        supports_jsonl_context=True,
-        preferred_context_format=ContextFormat.JSONL,
-    )
-    assert caps_with_jsonl.supports_jsonl_context is True
-    assert caps_with_jsonl.preferred_context_format == ContextFormat.JSONL
-
-    caps_without_jsonl = PlatformCapabilities(
-        supports_jsonl_context=False,
-        preferred_context_format=ContextFormat.MARKDOWN,
-    )
-    assert caps_without_jsonl.supports_jsonl_context is False
-    assert caps_without_jsonl.preferred_context_format == ContextFormat.MARKDOWN
-
-
-def test_platform_config_cli_flag():
-    """Test CLI flag in platform config."""
-    config = PlatformConfig(
-        platform_type=PlatformType.CLAUDE_CODE,
-        name="Claude Code",
-        config_dir=".claude",
-        capabilities=PlatformCapabilities(),
-        cli_flag="claude",
-    )
-    assert config.cli_flag == "claude"
-
-    config_no_flag = PlatformConfig(
-        platform_type=PlatformType.CUSTOM,
-        name="Custom",
-        config_dir=".custom",
-        capabilities=PlatformCapabilities(),
-    )
-    assert config_no_flag.cli_flag is None
+    assert registry.get("custom") == custom
+    assert any(platform.platform_type is PlatformType.CUSTOM for platform in registry.list_all())
+    assert get_platform("claude") is not None
+    assert len(list_platforms()) >= len(EXPECTED_BUILTINS)

@@ -50,6 +50,30 @@ def find_repo_root() -> Path:
     raise CLIError("Could not find a .reins directory from the current working directory.")
 
 
+def find_repo_root_for_init() -> Path:
+    """Find a repository root for initialization commands.
+
+    Prefers an existing `.reins` root, then the enclosing git root, then the
+    current working directory.
+    """
+    try:
+        return find_repo_root()
+    except CLIError:
+        pass
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return Path.cwd().resolve()
+
+    return Path(result.stdout.strip()).resolve()
+
+
 def load_config(repo_root: Path) -> dict:
     """Load .reins/config.yaml if exists."""
     config_path = repo_root / ".reins" / "config.yaml"

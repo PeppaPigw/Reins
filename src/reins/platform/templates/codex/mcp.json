@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "reins-local": {
+      "transport": "stdio",
+      "command": [
+        "python3",
+        "-m",
+        "reins.api.server"
+      ]
+    }
+  }
+}

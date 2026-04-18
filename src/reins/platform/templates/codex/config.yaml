@@ -1,0 +1,5 @@
+platform: codex
+repo_root: "{{repo_root}}"
+developer: "{{developer}}"
+project_type: "{{project_type}}"
+mcp_servers_file: ".codex/mcp.json"

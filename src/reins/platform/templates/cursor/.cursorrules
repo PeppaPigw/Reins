@@ -1,0 +1,6 @@
+# Reins Cursor Rules
+
+- Follow project specs under `.reins/spec/`.
+- Prefer small, typed changes.
+- Developer: `{{developer}}`
+- Project type: `{{project_type}}`

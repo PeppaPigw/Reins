@@ -1,267 +1,199 @@
-"""Platform configurator interface for setting up platform-specific environments.
-
-Configurators handle platform-specific initialization, template rendering,
-and environment setup.
-"""
+"""Platform configurator base classes and configurator registry."""
 
 from __future__ import annotations
 
+import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import Mapping
 
-from reins.platform.registry import PlatformConfig
+from reins.platform.registry import get_platform
+from reins.platform.template_fetcher import (
+    ConflictResolver,
+    TemplateApplyResult,
+    TemplateFetcher,
+)
+from reins.platform.template_hash import TemplateHashStore
+from reins.platform.types import PlatformConfig, PlatformType
 
 
 class PlatformConfigurator(ABC):
-    """Base class for platform-specific configurators.
+    """Base class for platform-specific configurators."""
 
-    Each platform (Claude Code, Codex, Cursor, etc.) has a configurator
-    that knows how to set up the platform-specific directory structure,
-    render templates, and configure hooks.
-    """
-
-    def __init__(self, config: PlatformConfig, repo_root: Path) -> None:
-        """Initialize configurator.
-
-        Args:
-            config: Platform configuration
-            repo_root: Root directory of the repository
-        """
+    def __init__(
+        self,
+        config: PlatformConfig,
+        repo_root: Path,
+        *,
+        template_fetcher: TemplateFetcher | None = None,
+    ) -> None:
         self.config = config
         self.repo_root = repo_root
         self.config_path = repo_root / config.config_dir
+        self.hash_store = TemplateHashStore(repo_root)
+        self.template_fetcher = template_fetcher or TemplateFetcher(
+            hash_store=self.hash_store
+        )
 
     @abstractmethod
-    def initialize(self, options: dict[str, Any] | None = None) -> None:
-        """Initialize platform-specific directory structure.
-
-        Args:
-            options: Optional configuration options
-        """
-        pass
-
-    @abstractmethod
-    def setup_hooks(self) -> None:
-        """Set up platform-specific hooks."""
-        pass
+    def configure(
+        self,
+        *,
+        variables: Mapping[str, str] | None = None,
+        conflict_resolver: ConflictResolver | None = None,
+    ) -> list[TemplateApplyResult]:
+        """Configure the repository for the platform."""
 
     @abstractmethod
-    def setup_agents(self) -> None:
-        """Set up platform-specific agents."""
-        pass
+    def validate(self) -> bool:
+        """Validate that the platform-specific files are installed."""
 
     @abstractmethod
-    def setup_commands(self) -> None:
-        """Set up platform-specific commands."""
-        pass
+    def cleanup(self) -> None:
+        """Remove platform-specific files created by the configurator."""
 
-    @abstractmethod
+    def initialize(self, options: dict[str, str] | None = None) -> None:
+        """Compatibility wrapper for earlier tests and callers."""
+        self.configure(variables=options or None)
+
     def validate_setup(self) -> bool:
-        """Validate that the platform is correctly set up.
+        """Compatibility wrapper for earlier tests and callers."""
+        return self.validate()
 
-        Returns:
-            True if setup is valid, False otherwise
-        """
-        pass
+    def setup_hooks(self) -> None:
+        """Compatibility no-op for earlier tests and callers."""
+
+    def setup_agents(self) -> None:
+        """Compatibility no-op for earlier tests and callers."""
+
+    def setup_commands(self) -> None:
+        """Compatibility no-op for earlier tests and callers."""
 
     def get_template_dirs(self) -> list[Path]:
-        """Get template directories for this platform.
-
-        Returns:
-            List of template directory paths
-        """
-        template_base = Path(__file__).parent.parent.parent / "templates"
-        return [template_base / dir_name for dir_name in self.config.template_dirs]
+        """Return the template directories associated with this platform."""
+        template_root = self.template_fetcher.template_root
+        return [template_root / name for name in self.config.template_dirs]
 
     def ensure_config_dir(self) -> None:
-        """Ensure platform config directory exists."""
+        """Ensure the platform config directory exists."""
         self.config_path.mkdir(parents=True, exist_ok=True)
 
+    def ensure_dir(self, path: Path) -> None:
+        """Ensure a directory exists."""
+        path.mkdir(parents=True, exist_ok=True)
+
     def get_hook_path(self, hook_name: str) -> Path | None:
-        """Get path to a specific hook file.
-
-        Args:
-            hook_name: Name of the hook (e.g., 'session-start')
-
-        Returns:
-            Path to hook file or None if hooks not supported
-        """
-        if not self.config.hook_path:
+        """Return the full path to a hook file if hooks are supported."""
+        if self.config.hook_dir is None:
             return None
-        return self.repo_root / self.config.hook_path / f"{hook_name}.py"
+        return self.config_path / self.config.hook_dir / f"{hook_name}.py"
 
     def get_agent_path(self, agent_name: str) -> Path | None:
-        """Get path to a specific agent file.
-
-        Args:
-            agent_name: Name of the agent (e.g., 'implement')
-
-        Returns:
-            Path to agent file or None if agents not supported
-        """
-        if not self.config.agent_path:
+        """Return the full path to an agent file if agents are supported."""
+        if self.config.agent_dir is None:
             return None
-        return self.repo_root / self.config.agent_path / f"{agent_name}.md"
+        return self.config_path / self.config.agent_dir / f"{agent_name}.md"
 
     def get_command_path(self, command_name: str) -> Path | None:
-        """Get path to a specific command file.
-
-        Args:
-            command_name: Name of the command (e.g., 'start')
-
-        Returns:
-            Path to command file or None if commands not supported
-        """
-        if not self.config.command_path:
+        """Return the full path to a command file if commands are supported."""
+        if self.config.command_dir is None:
             return None
-        return self.repo_root / self.config.command_path / command_name
+        return self.config_path / self.config.command_dir / command_name
 
+    def default_variables(
+        self,
+        variables: Mapping[str, str] | None = None,
+    ) -> dict[str, str]:
+        """Build the default template variable set."""
+        resolved = {
+            "repo_root": str(self.repo_root),
+            "developer": "unknown",
+            "project_type": "backend",
+            "platform": self.config.slug,
+        }
+        if variables:
+            resolved.update(dict(variables))
+        return resolved
 
-class ClaudeCodeConfigurator(PlatformConfigurator):
-    """Configurator for Claude Code platform."""
+    def apply_templates(
+        self,
+        mapping: Mapping[str, str],
+        *,
+        variables: Mapping[str, str] | None = None,
+        conflict_resolver: ConflictResolver | None = None,
+    ) -> list[TemplateApplyResult]:
+        """Apply platform templates to the repository."""
+        return self.template_fetcher.install_templates(
+            platform=self.config,
+            repo_root=self.repo_root,
+            file_mapping=mapping,
+            variables=self.default_variables(variables),
+            conflict_resolver=conflict_resolver,
+        )
 
-    def initialize(self, options: dict[str, Any] | None = None) -> None:
-        """Initialize Claude Code directory structure."""
-        self.ensure_config_dir()
-
-        # Create subdirectories
-        if self.config.hook_dir:
-            (self.config_path / self.config.hook_dir).mkdir(exist_ok=True)
-        if self.config.agent_dir:
-            (self.config_path / self.config.agent_dir).mkdir(exist_ok=True)
-        if self.config.command_dir:
-            (self.config_path / self.config.command_dir).mkdir(exist_ok=True)
-
-    def setup_hooks(self) -> None:
-        """Set up Claude Code hooks."""
-        if not self.config.capabilities.supports_hooks:
-            return
-
-        # Hook setup will be implemented when we create hook templates
-        pass
-
-    def setup_agents(self) -> None:
-        """Set up Claude Code agents."""
-        if not self.config.capabilities.supports_agents:
-            return
-
-        # Agent setup will be implemented when we create agent templates
-        pass
-
-    def setup_commands(self) -> None:
-        """Set up Claude Code commands."""
-        # Command setup will be implemented when we create command templates
-        pass
-
-    def validate_setup(self) -> bool:
-        """Validate Claude Code setup."""
-        # Check that config directory exists
-        if not self.config_path.exists():
-            return False
-
-        # Check that required subdirectories exist
-        if self.config.hook_dir and not (self.config_path / self.config.hook_dir).exists():
-            return False
-        if self.config.agent_dir and not (self.config_path / self.config.agent_dir).exists():
-            return False
-        if self.config.command_dir and not (self.config_path / self.config.command_dir).exists():
-            return False
-
-        return True
-
-
-class CodexConfigurator(PlatformConfigurator):
-    """Configurator for Codex platform."""
-
-    def initialize(self, options: dict[str, Any] | None = None) -> None:
-        """Initialize Codex directory structure."""
-        self.ensure_config_dir()
-
-        # Create subdirectories
-        if self.config.hook_dir:
-            (self.config_path / self.config.hook_dir).mkdir(exist_ok=True)
-        if self.config.agent_dir:
-            (self.config_path / self.config.agent_dir).mkdir(exist_ok=True)
-
-    def setup_hooks(self) -> None:
-        """Set up Codex hooks."""
-        if not self.config.capabilities.supports_hooks:
-            return
-
-        # Hook setup will be implemented when we create hook templates
-        pass
-
-    def setup_agents(self) -> None:
-        """Set up Codex agents."""
-        if not self.config.capabilities.supports_agents:
-            return
-
-        # Agent setup will be implemented when we create agent templates
-        pass
-
-    def setup_commands(self) -> None:
-        """Set up Codex commands."""
-        # Codex doesn't have custom commands
-        pass
-
-    def validate_setup(self) -> bool:
-        """Validate Codex setup."""
-        if not self.config_path.exists():
-            return False
-
-        if self.config.hook_dir and not (self.config_path / self.config.hook_dir).exists():
-            return False
-        if self.config.agent_dir and not (self.config_path / self.config.agent_dir).exists():
-            return False
-
-        return True
+    def remove_paths(self, relative_paths: list[str]) -> None:
+        """Remove files or directories relative to the repository root."""
+        for relative_path in relative_paths:
+            target_path = self.repo_root / relative_path
+            if target_path.is_dir():
+                shutil.rmtree(target_path, ignore_errors=True)
+            elif target_path.exists():
+                target_path.unlink()
 
 
 class GenericConfigurator(PlatformConfigurator):
-    """Generic configurator for platforms without special requirements."""
+    """Fallback configurator for platforms without special behavior."""
 
-    def initialize(self, options: dict[str, Any] | None = None) -> None:
-        """Initialize generic platform directory structure."""
+    def configure(
+        self,
+        *,
+        variables: Mapping[str, str] | None = None,
+        conflict_resolver: ConflictResolver | None = None,
+    ) -> list[TemplateApplyResult]:
+        del variables, conflict_resolver
         self.ensure_config_dir()
+        return []
 
-    def setup_hooks(self) -> None:
-        """Set up hooks (if supported)."""
-        pass
-
-    def setup_agents(self) -> None:
-        """Set up agents (if supported)."""
-        pass
-
-    def setup_commands(self) -> None:
-        """Set up commands (if supported)."""
-        pass
-
-    def validate_setup(self) -> bool:
-        """Validate generic setup."""
+    def validate(self) -> bool:
+        """Validate the generic platform setup."""
         return self.config_path.exists()
 
+    def cleanup(self) -> None:
+        """Remove the generic platform directory."""
+        self.remove_paths([self.config.config_dir])
 
-# Configurator registry
-_CONFIGURATORS: dict[str, type[PlatformConfigurator]] = {
-    "claude-code": ClaudeCodeConfigurator,
-    "codex": CodexConfigurator,
-}
+
+def _resolve_config(
+    platform: PlatformConfig | PlatformType | str,
+) -> PlatformConfig:
+    if isinstance(platform, PlatformConfig):
+        return platform
+    config = get_platform(platform)
+    if config is None:
+        raise ValueError(f"Unknown platform: {platform}")
+    return config
+
+
+def _configurator_registry() -> dict[PlatformType, type[PlatformConfigurator]]:
+    from reins.platform.configurators.claude import ClaudeCodeConfigurator
+    from reins.platform.configurators.codex import CodexConfigurator
+    from reins.platform.configurators.cursor import CursorConfigurator
+
+    return {
+        PlatformType.CLAUDE_CODE: ClaudeCodeConfigurator,
+        PlatformType.CURSOR: CursorConfigurator,
+        PlatformType.CODEX: CodexConfigurator,
+    }
 
 
 def get_configurator(
-    config: PlatformConfig, repo_root: Path
+    platform: PlatformConfig | PlatformType | str,
+    repo_root: Path,
 ) -> PlatformConfigurator:
-    """Get configurator for a platform.
-
-    Args:
-        config: Platform configuration
-        repo_root: Root directory of the repository
-
-    Returns:
-        Platform configurator instance
-    """
-    configurator_class = _CONFIGURATORS.get(
-        config.platform_type, GenericConfigurator
+    """Return the configurator for a platform."""
+    config = _resolve_config(platform)
+    configurator_type = _configurator_registry().get(
+        config.platform_type,
+        GenericConfigurator,
     )
-    return configurator_class(config, repo_root)
+    return configurator_type(config, repo_root)

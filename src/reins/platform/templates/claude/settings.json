@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "session-start": {
+      "command": "python3 {{repo_root}}/.claude/hooks/session-start.py"
+    },
+    "subagent-spawn": {
+      "command": "python3 {{repo_root}}/.claude/hooks/inject-subagent-context.py"
+    }
+  },
+  "reins": {
+    "developer": "{{developer}}",
+    "project_type": "{{project_type}}"
+  }
+}

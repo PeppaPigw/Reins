@@ -1,207 +1,209 @@
 #!/usr/bin/env python3
-"""Session start hook for Claude Code.
+"""Session start hook for Claude Code."""
 
-Automatically injects task context and relevant specs at session start.
-This hook reads the current task from .reins/.current-task and loads:
-- Task metadata (status, PRD, acceptance criteria)
-- Relevant specs based on task type and package
-- Agent context from JSONL files
-
-Output is formatted as <system-reminder> tags for Claude Code.
-"""
+from __future__ import annotations
 
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Any
 
 
 def find_repo_root() -> Path | None:
-    """Find repository root by looking for .reins directory.
-
-    Returns:
-        Path to repository root or None if not found
-    """
+    """Find the repository root by locating `.reins`."""
     current = Path.cwd()
-
-    # Try current directory and parents
-    for path in [current] + list(current.parents):
+    for path in [current, *current.parents]:
         if (path / ".reins").exists():
             return path
-
     return None
 
 
 def load_current_task(repo_root: Path) -> str | None:
-    """Load current task ID from .reins/.current-task.
-
-    Args:
-        repo_root: Repository root path
-
-    Returns:
-        Task ID or None if no current task
-    """
+    """Load the current task ID from `.reins/.current-task`."""
     current_task_file = repo_root / ".reins" / ".current-task"
-
     if not current_task_file.exists():
         return None
-
     try:
-        content = current_task_file.read_text().strip()
-        # Format: "tasks/{task_id}"
-        if content.startswith("tasks/"):
-            return content.split("/")[-1]
-        if content.startswith(".reins/tasks/") or content.startswith(".trellis/tasks/"):
-            return content.split("/")[-1]
+        content = current_task_file.read_text(encoding="utf-8").strip()
+    except OSError:
         return None
-    except Exception:
-        return None
+    if content.startswith("tasks/"):
+        return content.split("/")[-1]
+    if content.startswith(".reins/tasks/") or content.startswith(".trellis/tasks/"):
+        return content.split("/")[-1]
+    return None
 
 
 def load_task_metadata(repo_root: Path, task_id: str) -> dict[str, Any] | None:
-    """Load task metadata from task.json.
-
-    Args:
-        repo_root: Repository root path
-        task_id: Task ID
-
-    Returns:
-        Task metadata dictionary or None if not found
-    """
-    task_json_path = repo_root / ".reins" / "tasks" / task_id / "task.json"
-
-    if not task_json_path.exists():
+    """Load task metadata from `.reins/tasks/<task_id>/task.json`."""
+    path = repo_root / ".reins" / "tasks" / task_id / "task.json"
+    if not path.exists():
         return None
-
     try:
-        with open(task_json_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
         return None
 
 
 def load_prd(repo_root: Path, task_id: str) -> str | None:
-    """Load PRD content from prd.md.
-
-    Args:
-        repo_root: Repository root path
-        task_id: Task ID
-
-    Returns:
-        PRD content or None if not found
-    """
-    prd_path = repo_root / ".reins" / "tasks" / task_id / "prd.md"
-
-    if not prd_path.exists():
+    """Load PRD content for the active task."""
+    path = repo_root / ".reins" / "tasks" / task_id / "prd.md"
+    if not path.exists():
         return None
-
     try:
-        return prd_path.read_text(encoding="utf-8")
-    except Exception:
+        return path.read_text(encoding="utf-8")
+    except OSError:
         return None
 
 
-def parse_checklist(content: str) -> list[tuple[bool, str, str | None]]:
-    """Parse checklist items from index.md content.
+def _bootstrap_imports(repo_root: Path) -> None:
+    candidates = [
+        repo_root / "src",
+        Path(__file__).resolve().parents[2] / "src",
+    ]
+    for src_path in candidates:
+        if src_path.exists():
+            sys.path.insert(0, str(src_path))
 
-    Args:
-        content: Index.md file content
 
-    Returns:
-        List of (checked, spec_file, description) tuples
-    """
-    items = []
-    lines = content.split("\n")
-    in_checklist = False
+def _relative_reads(repo_root: Path, checklist: Any, read_specs: set[str]) -> set[str]:
+    spec_root = (repo_root / ".reins" / "spec").resolve()
+    checklist_root = checklist.spec_dir.resolve()
+    relative: set[str] = set()
+    for read_spec in read_specs:
+        path = (spec_root / read_spec).resolve()
+        if path.is_relative_to(checklist_root):
+            relative.add(path.relative_to(checklist_root).as_posix())
+    return relative
 
-    # Regex patterns
-    checklist_header = re.compile(r"^##\s+Pre-Development Checklist", re.IGNORECASE)
-    checklist_item = re.compile(r"^-\s+\[([ x])\]\s+`?([^`\s]+\.md)`?(?:\s+-\s+(.+))?")
 
-    for line in lines:
-        # Check for checklist header
-        if checklist_header.match(line):
-            in_checklist = True
+def _requested_layers(task_type: str) -> list[str]:
+    normalized = task_type.strip().lower()
+    if normalized == "fullstack":
+        return ["backend", "frontend"]
+    if normalized in {"backend", "frontend", "unit-test", "integration-test"}:
+        return [normalized]
+    return ["backend"]
+
+
+def _resolve_spec_sources(
+    repo_root: Path,
+    task_metadata: dict[str, Any],
+) -> list[tuple[Path, dict[str, Any]]]:
+    spec_root = repo_root / ".reins" / "spec"
+    metadata = task_metadata.get("metadata", {})
+    package = metadata.get("package") if isinstance(metadata, dict) else None
+    task_type = task_metadata.get("task_type", "backend")
+    if not isinstance(task_type, str):
+        task_type = "backend"
+    if not isinstance(package, str):
+        package = None
+
+    sources: list[tuple[Path, dict[str, Any]]] = []
+    seen: set[Path] = set()
+
+    def add_source(path: Path, layer: str, *, package_name: str | None, package_specific: bool) -> None:
+        resolved = path.resolve()
+        if resolved in seen or not path.exists():
+            return
+        seen.add(resolved)
+        sources.append(
+            (
+                path,
+                {
+                    "layer": layer,
+                    "package": package_name,
+                    "package_specific": package_specific,
+                },
+            )
+        )
+
+    requested_layers = _requested_layers(task_type)
+
+    if package:
+        package_root = spec_root / package
+        if package_root.exists():
+            matched_standard = False
+            for layer in requested_layers:
+                layer_dir = package_root / layer
+                if layer_dir.exists():
+                    matched_standard = True
+                    add_source(layer_dir, layer, package_name=package, package_specific=True)
+            package_guides = package_root / "guides"
+            if package_guides.exists():
+                add_source(package_guides, "guides", package_name=package, package_specific=True)
+            if not matched_standard:
+                if (package_root / "index.md").exists():
+                    add_source(package_root, "custom", package_name=package, package_specific=True)
+                for child in sorted(package_root.iterdir()):
+                    if child.is_dir() and not child.name.startswith("."):
+                        add_source(child, child.name, package_name=package, package_specific=True)
+
+    for layer in requested_layers:
+        add_source(spec_root / layer, layer, package_name=None, package_specific=False)
+    add_source(spec_root / "guides", "guides", package_name=None, package_specific=False)
+    return sources
+
+
+def load_relevant_specs(
+    repo_root: Path,
+    task_metadata: dict[str, Any],
+) -> tuple[list[tuple[str, str]], dict[str, list[tuple[int, bool, str, str | None]]]]:
+    """Load relevant spec indexes and checklist state for the task."""
+    from reins.context.checklist import ChecklistParser
+    metadata = task_metadata.get("metadata", {})
+
+    checklist_state = metadata.get("checklist", {}) if isinstance(metadata, dict) else {}
+    read_specs = checklist_state.get("read_specs", []) if isinstance(checklist_state, dict) else []
+    normalized_reads = {item for item in read_specs if isinstance(item, str)}
+
+    sources = _resolve_spec_sources(repo_root, task_metadata)
+    specs: list[tuple[str, str]] = []
+    checklists: dict[str, list[tuple[int, bool, str, str | None]]] = {}
+
+    for source_path, source_metadata in sources:
+        index_path = source_path / "index.md" if source_path.is_dir() else source_path
+        if not index_path.exists():
+            continue
+        try:
+            content = index_path.read_text(encoding="utf-8")
+        except OSError:
             continue
 
-        # Check for next section (ends checklist)
-        if in_checklist and line.startswith("##"):
-            break
+        specs.append((str(index_path.relative_to(repo_root)), content))
 
-        # Parse checklist items
-        if in_checklist:
-            match = checklist_item.match(line)
-            if match:
-                checked = match.group(1).lower() == "x"
-                spec_file = match.group(2)
-                description = match.group(3) if match.group(3) else None
-                items.append((checked, spec_file, description))
-
-    return items
-
-
-def load_relevant_specs(repo_root: Path, task_type: str) -> tuple[list[tuple[str, str]], dict[str, list[tuple[bool, str, str | None]]]]:
-    """Load relevant specs based on task type.
-
-    Args:
-        repo_root: Repository root path
-        task_type: Task type (e.g., 'backend', 'frontend', 'fullstack')
-
-    Returns:
-        Tuple of (specs, checklists) where:
-        - specs: List of (spec_path, spec_content) tuples
-        - checklists: Dict mapping layer name to list of (checked, spec_file, description) tuples
-    """
-    specs = []
-    checklists = {}
-    spec_dir = repo_root / ".reins" / "spec"
-
-    if not spec_dir.exists():
-        return specs, checklists
-
-    # Determine which spec directories to load based on task type
-    spec_dirs = []
-    if task_type in ["backend", "fullstack"]:
-        spec_dirs.append("backend")
-    if task_type in ["frontend", "fullstack"]:
-        spec_dirs.append("frontend")
-
-    # Always include guides
-    spec_dirs.append("guides")
-
-    # Load index.md from each relevant directory and parse checklists
-    for dir_name in spec_dirs:
-        index_path = spec_dir / dir_name / "index.md"
-        if index_path.exists():
-            try:
-                content = index_path.read_text(encoding="utf-8")
-                specs.append((str(index_path.relative_to(repo_root)), content))
-
-                # Parse checklist from index
-                items = parse_checklist(content)
-                if items:
-                    checklists[dir_name] = items
-            except Exception:
-                pass
+        checklist = ChecklistParser.parse(index_path)
+        if checklist is None:
+            continue
+        relative_reads = _relative_reads(repo_root, checklist, normalized_reads)
+        layer = str(source_metadata.get("layer", index_path.parent.name)).replace("-", " ").title()
+        package_name = source_metadata.get("package")
+        header = (
+            f"{package_name.title()} / {layer}"
+            if source_metadata.get("package_specific") and isinstance(package_name, str)
+            else layer
+        )
+        checklists[header] = [
+            (
+                item.level,
+                checklist._is_item_completed(item, relative_reads),
+                item.target or item.text,
+                item.description,
+            )
+            for item in checklist.iter_items()
+        ]
 
     return specs, checklists
 
 
-def format_output(task_metadata: dict[str, Any], prd_content: str | None, specs: list[tuple[str, str]], checklists: dict[str, list[tuple[bool, str, str | None]]]) -> str:
-    """Format output as system-reminder tags.
-
-    Args:
-        task_metadata: Task metadata dictionary
-        prd_content: PRD content
-        specs: List of (spec_path, spec_content) tuples
-        checklists: Dict mapping layer name to list of (checked, spec_file, description) tuples
-
-    Returns:
-        Formatted output string
-    """
-    lines = []
-
+def format_output(
+    task_metadata: dict[str, Any],
+    prd_content: str | None,
+    specs: list[tuple[str, str]],
+    checklists: dict[str, list[tuple[int, bool, str, str | None]]],
+) -> str:
+    """Format hook output for Claude Code."""
+    lines: list[str] = []
     lines.append("<session-context>")
     lines.append("Active task context loaded from .reins/")
     lines.append("</session-context>")
@@ -217,13 +219,11 @@ def format_output(task_metadata: dict[str, Any], prd_content: str | None, specs:
     lines.append(f"**Assignee:** {task_metadata['assignee']}")
     lines.append(f"**Branch:** {task_metadata['branch']}")
     lines.append("")
-
     if prd_content:
         lines.append("## PRD")
         lines.append("")
         lines.append(prd_content)
         lines.append("")
-
     lines.append("</current-task>")
     lines.append("")
 
@@ -233,13 +233,11 @@ def format_output(task_metadata: dict[str, Any], prd_content: str | None, specs:
         lines.append("")
         lines.append("Read these specs before starting work:")
         lines.append("")
-
         for spec_path, spec_content in specs:
             lines.append(f"### {spec_path}")
             lines.append("")
             lines.append(spec_content)
             lines.append("")
-
         lines.append("</relevant-specs>")
         lines.append("")
 
@@ -249,64 +247,42 @@ def format_output(task_metadata: dict[str, Any], prd_content: str | None, specs:
         lines.append("")
         lines.append("Before starting work, ensure you have read:")
         lines.append("")
-
         for layer_name, items in checklists.items():
-            lines.append(f"### {layer_name.capitalize()}")
+            lines.append(f"### {layer_name}")
             lines.append("")
-            for checked, spec_file, description in items:
-                check_mark = "x" if checked else " "
+            for level, complete, spec_file, description in items:
+                check_mark = "x" if complete else " "
+                indent = "  " * level
                 if description:
-                    lines.append(f"- [{check_mark}] `{spec_file}` - {description}")
+                    lines.append(f"{indent}- [{check_mark}] `{spec_file}` - {description}")
                 else:
-                    lines.append(f"- [{check_mark}] `{spec_file}`")
+                    lines.append(f"{indent}- [{check_mark}] `{spec_file}`")
             lines.append("")
-
         lines.append("</pre-development-checklist>")
 
     return "\n".join(lines)
 
 
 def main() -> int:
-    """Main entry point.
-
-    Returns:
-        Exit code (0 for success, 1 for error)
-    """
-    try:
-        # Find repository root
-        repo_root = find_repo_root()
-        if not repo_root:
-            # No .reins directory found - not a Reins project
-            return 0
-
-        # Load current task
-        task_id = load_current_task(repo_root)
-        if not task_id:
-            # No current task - nothing to inject
-            return 0
-
-        # Load task metadata
-        task_metadata = load_task_metadata(repo_root, task_id)
-        if not task_metadata:
-            print(f"Warning: Could not load task metadata for {task_id}", file=sys.stderr)
-            return 0
-
-        # Load PRD
-        prd_content = load_prd(repo_root, task_id)
-
-        # Load relevant specs
-        task_type = task_metadata.get("task_type", "backend")
-        specs, checklists = load_relevant_specs(repo_root, task_type)
-
-        # Format and output
-        output = format_output(task_metadata, prd_content, specs, checklists)
-        print(output)
-
+    """Main entry point."""
+    repo_root = find_repo_root()
+    if not repo_root:
         return 0
 
-    except Exception as e:
-        print(f"Error in session-start hook: {e}", file=sys.stderr)
-        return 1
+    _bootstrap_imports(repo_root)
+    task_id = load_current_task(repo_root)
+    if not task_id:
+        return 0
+
+    task_metadata = load_task_metadata(repo_root, task_id)
+    if not task_metadata:
+        print(f"Warning: Could not load task metadata for {task_id}", file=sys.stderr)
+        return 0
+
+    prd_content = load_prd(repo_root, task_id)
+    specs, checklists = load_relevant_specs(repo_root, task_metadata)
+    print(format_output(task_metadata, prd_content, specs, checklists))
+    return 0
 
 
 if __name__ == "__main__":

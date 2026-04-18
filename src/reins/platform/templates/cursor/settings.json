@@ -1,0 +1,7 @@
+{
+  "reins": {
+    "enabled": true,
+    "developer": "{{developer}}",
+    "project_type": "{{project_type}}"
+  }
+}

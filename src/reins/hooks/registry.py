@@ -10,8 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from reins.hooks.types import Hook, HookContext, HookResult, HookStatus, ScriptHook
-from reins.platform.registry import PlatformConfig
-from reins.platform.types import HookType
+from reins.platform.types import HookType, PlatformConfig
 
 
 class HookRegistry:

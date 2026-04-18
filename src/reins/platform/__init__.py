@@ -1,25 +1,35 @@
-"""Platform registry and configuration for multi-tool support.
-
-This module provides a single source of truth for platform metadata,
-capabilities, and configuration across different AI coding tools.
-"""
+"""Platform registry, detection, templates, and configuration helpers."""
 
 from reins.platform.configurator import (
-    ClaudeCodeConfigurator,
-    CodexConfigurator,
     GenericConfigurator,
     PlatformConfigurator,
     get_configurator,
 )
+from reins.platform.configurators.claude import ClaudeCodeConfigurator
+from reins.platform.configurators.codex import CodexConfigurator
+from reins.platform.configurators.cursor import CursorConfigurator
+from reins.platform.project_detector import ProjectDetector, ProjectType
 from reins.platform.registry import (
-    PlatformCapabilities,
-    PlatformConfig,
     PlatformRegistry,
+    detect_platform,
+    detect_platforms,
     get_platform,
     list_platforms,
     register_platform,
 )
-from reins.platform.types import ContextFormat, HookType, PlatformType
+from reins.platform.template_fetcher import (
+    ConflictAction,
+    TemplateApplyResult,
+    TemplateFetcher,
+)
+from reins.platform.template_hash import TemplateHashRecord, TemplateHashStore
+from reins.platform.types import (
+    ContextFormat,
+    HookType,
+    PlatformCapabilities,
+    PlatformConfig,
+    PlatformType,
+)
 
 __all__ = [
     "PlatformCapabilities",
@@ -28,12 +38,22 @@ __all__ = [
     "PlatformType",
     "HookType",
     "ContextFormat",
+    "detect_platform",
+    "detect_platforms",
     "get_platform",
     "list_platforms",
     "register_platform",
     "PlatformConfigurator",
     "ClaudeCodeConfigurator",
+    "CursorConfigurator",
     "CodexConfigurator",
     "GenericConfigurator",
     "get_configurator",
+    "ConflictAction",
+    "TemplateApplyResult",
+    "TemplateFetcher",
+    "TemplateHashRecord",
+    "TemplateHashStore",
+    "ProjectDetector",
+    "ProjectType",
 ]

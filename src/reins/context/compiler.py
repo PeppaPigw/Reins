@@ -22,6 +22,7 @@ import aiofiles  # type: ignore[import-untyped]
 
 from reins.context.cache import ContextCache
 from reins.context.optimizer import ContextOptimizer
+from reins.context.types import LAYER_PRIORITY, SpecLayer
 from reins.kernel.event.envelope import event_from_dict
 from reins.kernel.event.journal import EventJournal
 from reins.serde import canonical_json, parse_dt
@@ -135,6 +136,146 @@ class ContextCompiler:
         self._task_projection = task_projection
         self._optimizer = optimizer if optimizer is not None else ContextOptimizer()
         self._cache = cache if cache is not None else ContextCache()
+
+    def resolve_spec_sources(
+        self,
+        spec_root: Path,
+        *,
+        task_type: str,
+        package: str | None = None,
+    ) -> list[ContextSource]:
+        """Resolve spec sources in package -> global -> guides priority order."""
+        if not spec_root.exists():
+            return []
+
+        requested_layers = self._requested_layers(task_type)
+        sources: list[ContextSource] = []
+
+        if package:
+            package_root = spec_root / package
+            if package_root.exists():
+                package_sources = self._package_sources(package_root, package, requested_layers)
+                sources.extend(package_sources)
+
+        for layer in requested_layers:
+            global_dir = spec_root / layer.value
+            if global_dir.exists():
+                sources.append(
+                    self._make_spec_source(
+                        global_dir,
+                        identifier=layer.value,
+                        layer=layer,
+                        package=None,
+                        package_specific=False,
+                    )
+                )
+
+        guides_dir = spec_root / SpecLayer.GUIDES.value
+        if guides_dir.exists():
+            sources.append(
+                self._make_spec_source(
+                    guides_dir,
+                    identifier=SpecLayer.GUIDES.value,
+                    layer=SpecLayer.GUIDES,
+                    package=None,
+                    package_specific=False,
+                )
+            )
+
+        deduplicated: list[ContextSource] = []
+        seen_paths: set[str] = set()
+        for source in sources:
+            if not source.path:
+                continue
+            resolved = str(Path(source.path).resolve())
+            if resolved in seen_paths:
+                continue
+            seen_paths.add(resolved)
+            deduplicated.append(source)
+        return deduplicated
+
+    async def compile_layered_sources(
+        self,
+        *,
+        sources: list[ContextSource],
+        max_tokens: int | None = None,
+        priority: list[str] | None = None,
+        use_cache: bool = True,
+    ) -> CompiledContext:
+        """Compile sources with a per-source budget derived from layer priority."""
+        budget = max_tokens or self.token_budget
+        if not sources:
+            return CompiledContext(
+                sections=[],
+                total_tokens=0,
+                max_tokens=budget,
+                sources=[],
+            )
+
+        combined_sections: list[ContextSection] = []
+        dropped: list[str] = []
+        deduplicated: list[str] = []
+        source_ids: list[str] = []
+        remaining_budget = budget
+
+        grouped_sources = [
+            [source for source in sources if bool(source.metadata.get("package_specific", False))],
+            [source for source in sources if not bool(source.metadata.get("package_specific", False))],
+        ]
+
+        for group in grouped_sources:
+            if not group or remaining_budget <= 0:
+                continue
+            group_remaining = remaining_budget
+            for index, source in enumerate(group):
+                if group_remaining <= 0:
+                    break
+                source_id = source.identifier or source.path or source.task_id or source.type
+                source_ids.append(str(source_id))
+                remaining_group = group[index:]
+                allocation = self._allocate_source_budgets(remaining_group, group_remaining)[
+                    str(source_id)
+                ]
+                if allocation <= 0:
+                    continue
+                compiled = await self.compile_sources(
+                    sources=[source],
+                    optimize=True,
+                    max_tokens=max(1, allocation),
+                    priority=priority or ["spec"],
+                    use_cache=use_cache,
+                )
+                combined_sections.extend(compiled.sections)
+                dropped.extend(compiled.dropped)
+                deduplicated.extend(compiled.deduplicated)
+                group_remaining = max(0, group_remaining - compiled.total_tokens)
+            remaining_budget = group_remaining
+
+        base_context = CompiledContext(
+            sections=combined_sections,
+            total_tokens=sum(section.token_count for section in combined_sections),
+            max_tokens=budget,
+            sources=source_ids,
+            dropped=dropped,
+            deduplicated=deduplicated,
+            optimized=True,
+        )
+
+        if base_context.total_tokens <= budget:
+            return base_context
+
+        optimized = self._optimizer.optimize(
+            base_context.sections,
+            max_tokens=budget,
+            priority=priority or ["spec"],
+        )
+        return replace(
+            base_context,
+            sections=optimized.sections,
+            total_tokens=optimized.total_tokens,
+            dropped=optimized.dropped,
+            deduplicated=optimized.deduplicated,
+        )
 
     # ------------------------------------------------------------------
     # Legacy Tier A: Standing law
@@ -389,6 +530,155 @@ class ContextCompiler:
 
         return base_context
 
+    def _requested_layers(self, task_type: str) -> list[SpecLayer]:
+        normalized = task_type.strip().lower()
+        if normalized == "fullstack":
+            return [SpecLayer.BACKEND, SpecLayer.FRONTEND]
+
+        layer = SpecLayer.from_name(normalized)
+        if layer != SpecLayer.CUSTOM and layer != SpecLayer.GUIDES:
+            return [layer]
+
+        if normalized == SpecLayer.GUIDES.value:
+            return [SpecLayer.GUIDES]
+
+        return [SpecLayer.BACKEND]
+
+    def _package_sources(
+        self,
+        package_root: Path,
+        package: str,
+        requested_layers: list[SpecLayer],
+    ) -> list[ContextSource]:
+        sources: list[ContextSource] = []
+        matched_standard_layer = False
+
+        for layer in requested_layers:
+            layer_dir = package_root / layer.value
+            if not layer_dir.exists():
+                continue
+            matched_standard_layer = True
+            sources.append(
+                self._make_spec_source(
+                    layer_dir,
+                    identifier=f"package:{package}:{layer.value}",
+                    layer=layer,
+                    package=package,
+                    package_specific=True,
+                )
+            )
+
+        package_guides = package_root / SpecLayer.GUIDES.value
+        if package_guides.exists():
+            sources.append(
+                self._make_spec_source(
+                    package_guides,
+                    identifier=f"package:{package}:{SpecLayer.GUIDES.value}",
+                    layer=SpecLayer.GUIDES,
+                    package=package,
+                    package_specific=True,
+                )
+            )
+
+        if matched_standard_layer:
+            return sources
+
+        if (package_root / "index.md").exists():
+            sources.append(
+                self._make_spec_source(
+                    package_root,
+                    identifier=f"package:{package}",
+                    layer=SpecLayer.CUSTOM,
+                    package=package,
+                    package_specific=True,
+                )
+            )
+
+        custom_children = sorted(
+            child for child in package_root.iterdir() if child.is_dir() and not child.name.startswith(".")
+        )
+        if custom_children:
+            for child in custom_children:
+                layer = SpecLayer.from_name(child.name)
+                sources.append(
+                    self._make_spec_source(
+                        child,
+                        identifier=f"package:{package}:{child.name}",
+                        layer=layer,
+                        package=package,
+                        package_specific=True,
+                    )
+                )
+            return sources
+
+        return sources
+
+    def _make_spec_source(
+        self,
+        path: Path,
+        *,
+        identifier: str,
+        layer: SpecLayer,
+        package: str | None,
+        package_specific: bool,
+    ) -> ContextSource:
+        weight = LAYER_PRIORITY[layer] * (1.5 if package_specific else 1.0)
+        return ContextSource(
+            type="spec",
+            path=str(path.resolve()),
+            identifier=identifier,
+            priority=weight,
+            metadata={
+                "layer": layer.value,
+                "package": package,
+                "package_specific": package_specific,
+                "token_weight": weight,
+            },
+        )
+
+    def _allocate_source_budgets(
+        self,
+        sources: list[ContextSource],
+        max_tokens: int,
+    ) -> dict[str, int]:
+        identifiers = [str(source.identifier or source.path or source.task_id or source.type) for source in sources]
+        weights = [
+            float(source.metadata.get("token_weight", source.priority or 1.0))
+            for source in sources
+        ]
+        total_weight = sum(weights) or float(len(weights))
+        minimum = 0 if max_tokens < len(sources) else max(1, max_tokens // max(1, len(sources) * 4))
+
+        allocations: dict[str, int] = {}
+        allocated = 0
+        for identifier, weight in zip(identifiers, weights, strict=False):
+            share = int(max_tokens * (weight / total_weight))
+            budget = max(minimum, share)
+            allocations[identifier] = budget
+            allocated += budget
+
+        while allocated > max_tokens and allocations:
+            reduced = False
+            for identifier in identifiers:
+                if allocated <= max_tokens:
+                    break
+                if allocations[identifier] <= minimum:
+                    continue
+                allocations[identifier] -= 1
+                allocated -= 1
+                reduced = True
+            if not reduced:  # pragma: no cover - defensive guard against invalid allocation state
+                break
+
+        while allocated < max_tokens and identifiers:
+            for identifier in identifiers:
+                if allocated >= max_tokens:
+                    break
+                allocations[identifier] += 1
+                allocated += 1
+
+        return allocations
+
     async def _resolve_source(self, source: ContextSource) -> list[ContextSection]:
         if source.type == "literal":
             identifier = source.identifier or "literal"
@@ -563,7 +853,7 @@ class ContextCompiler:
         paths = sorted(journal_path.glob("*.jsonl")) if is_directory else [journal_path]
 
         for path in paths:
-            if not path.exists():
+            if not path.exists():  # pragma: no cover - file can disappear between discovery and read
                 continue
             async with aiofiles.open(path, "r", encoding="utf-8") as handle:
                 async for line in handle:

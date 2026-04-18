@@ -20,6 +20,7 @@ from typing import Any
 
 import ulid
 
+from reins.context.checklist import Checklist, ChecklistParser
 from reins.context.compiler import CompiledContext, ContextCompiler, ContextSource
 from reins.kernel.event.builder import EventBuilder
 from reins.kernel.event.journal import EventJournal
@@ -56,6 +57,7 @@ class ContextInjectionHook:
             "task_metadata": None,
             "agent_context": [],
             "specs": [],
+            "checklist": None,
         }
 
         task_dir = self._resolve_current_task_dir()
@@ -64,19 +66,40 @@ class ContextInjectionHook:
 
         task_metadata = self._load_task_metadata(task_dir)
         agent_context = self._load_agent_context(task_dir, agent_type)
-        specs = await self._compile_specs(task_metadata)
+        spec_sources = self._build_spec_sources(task_metadata)
+        specs = await self._compile_specs(spec_sources)
+        checklist, updated_metadata = self._update_checklist_status(
+            task_dir=task_dir,
+            task_metadata=task_metadata,
+            spec_sources=spec_sources,
+            specs=specs,
+        )
 
-        context["task_metadata"] = task_metadata
+        context["task_metadata"] = updated_metadata
         context["agent_context"] = agent_context
         context["specs"] = specs
+        context["checklist"] = checklist
+
+        if checklist is not None and not checklist["complete"]:
+            await self._event_builder.commit(
+                run_id=self._resolve_run_id(run_id),
+                event_type="checklist.incomplete",
+                payload={
+                    "agent_type": agent_type,
+                    "task_id": self._task_id(updated_metadata),
+                    "missing_files": checklist["missing_files"],
+                    "unread_specs": checklist["unread_specs"],
+                },
+            )
 
         await self._emit_context_injected(
             run_id=run_id,
             agent_type=agent_type,
             stage="before_subagent_spawn",
-            task_metadata=task_metadata,
+            task_metadata=updated_metadata,
             agent_context=agent_context,
             specs=specs,
+            checklist=checklist,
         )
         return context
 
@@ -114,6 +137,7 @@ class ContextInjectionHook:
             task_metadata=updated_metadata,
             agent_context=agent_context,
             specs=[],
+            checklist=None,
         )
 
     async def on_error(
@@ -191,14 +215,12 @@ class ContextInjectionHook:
             for message in ContextJSONL.read_messages(task_dir / f"{agent_type}.jsonl")
         ]
 
-    async def _compile_specs(self, task_metadata: dict[str, Any] | None) -> list[dict[str, Any]]:
-        sources = self._build_spec_sources(task_metadata)
+    async def _compile_specs(self, sources: list[ContextSource]) -> list[dict[str, Any]]:
         if not sources:
             return []
 
-        compiled: CompiledContext = await self.context_compiler.compile_sources(
+        compiled: CompiledContext = await self.context_compiler.compile_layered_sources(
             sources=sources,
-            optimize=True,
             max_tokens=self.spec_token_budget,
             priority=["spec"],
         )
@@ -209,6 +231,7 @@ class ContextInjectionHook:
                 "priority": section.priority,
                 "token_count": section.token_count,
                 "metadata": section.metadata,
+                "source_type": section.source_type,
             }
             for section in compiled.sections
         ]
@@ -233,42 +256,11 @@ class ContextInjectionHook:
                 if isinstance(raw_package, str) and raw_package:
                     package = raw_package
 
-        paths: list[tuple[Path, str, float]] = []
-        if package:
-            package_dir = spec_root / package
-            if package_dir.exists():
-                paths.append((package_dir, f"package:{package}", 120.0))
-
-        if task_type in {"backend", "fullstack"}:
-            backend_dir = spec_root / "backend"
-            if backend_dir.exists():
-                paths.append((backend_dir, "backend", 100.0))
-
-        if task_type in {"frontend", "fullstack"}:
-            frontend_dir = spec_root / "frontend"
-            if frontend_dir.exists():
-                paths.append((frontend_dir, "frontend", 100.0))
-
-        guides_dir = spec_root / "guides"
-        if guides_dir.exists():
-            paths.append((guides_dir, "guides", 90.0))
-
-        sources: list[ContextSource] = []
-        seen: set[str] = set()
-        for path, identifier, priority in paths:
-            key = str(path.resolve())
-            if key in seen:
-                continue
-            seen.add(key)
-            sources.append(
-                ContextSource(
-                    type="spec",
-                    path=str(path),
-                    identifier=identifier,
-                    priority=priority,
-                )
-            )
-        return sources
+        return self.context_compiler.resolve_spec_sources(
+            spec_root,
+            task_type=task_type,
+            package=package,
+        )
 
     def _update_task_status_from_result(
         self,
@@ -306,6 +298,162 @@ class ContextInjectionHook:
             return TaskStatus.COMPLETED.value
         return None
 
+    def _update_checklist_status(
+        self,
+        *,
+        task_dir: Path,
+        task_metadata: dict[str, Any] | None,
+        spec_sources: list[ContextSource],
+        specs: list[dict[str, Any]],
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        if task_metadata is None:
+            return None, task_metadata
+
+        read_specs = self._tracked_read_specs(task_metadata)
+        read_specs.update(self._read_specs_from_compiled_context(specs))
+
+        layers: list[dict[str, Any]] = []
+        for source in spec_sources:
+            if not source.path:
+                continue
+            source_path = Path(source.path)
+            index_path = source_path / "index.md" if source_path.is_dir() else source_path
+            checklist = ChecklistParser.parse(index_path)
+            if checklist is None:
+                continue
+
+            relative_reads = self._relative_reads_for_checklist(checklist, read_specs)
+            validation = checklist.validate_completion(relative_reads)
+            layers.append(
+                {
+                    "identifier": source.identifier,
+                    "index_path": self._relative_to_repo(index_path),
+                    "layer": str(source.metadata.get("layer", source_path.name)),
+                    "package": source.metadata.get("package"),
+                    "package_specific": bool(source.metadata.get("package_specific", False)),
+                    "complete": validation.is_complete,
+                    "completed_count": validation.completed_count,
+                    "total_items": validation.total_items,
+                    "missing_files": validation.missing_files,
+                    "unread_specs": validation.incomplete_items,
+                    "completed_specs": validation.completed_items,
+                    "items": [
+                        self._serialize_checklist_item(checklist, item, relative_reads)
+                        for item in checklist.items
+                    ],
+                }
+            )
+
+        if not layers:
+            return None, task_metadata
+
+        checklist_status = {
+            "complete": all(layer["complete"] for layer in layers),
+            "validated_at": datetime.now(UTC).isoformat(),
+            "read_specs": sorted(read_specs),
+            "layers": layers,
+            "missing_files": sorted({path for layer in layers for path in layer["missing_files"]}),
+            "unread_specs": [
+                item
+                for layer in layers
+                for item in layer["unread_specs"]
+            ],
+        }
+
+        updated = dict(task_metadata)
+        metadata = dict(updated.get("metadata") or {})
+        metadata["checklist"] = checklist_status
+        updated["metadata"] = metadata
+        (task_dir / "task.json").write_text(
+            json.dumps(updated, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return checklist_status, updated
+
+    def _tracked_read_specs(self, task_metadata: dict[str, Any]) -> set[str]:
+        metadata = task_metadata.get("metadata")
+        if not isinstance(metadata, dict):
+            return set()
+        checklist = metadata.get("checklist")
+        if not isinstance(checklist, dict):
+            return set()
+        read_specs = checklist.get("read_specs", [])
+        if not isinstance(read_specs, list):
+            return set()
+        return {self._normalize_spec_path(item) for item in read_specs if isinstance(item, str)}
+
+    def _read_specs_from_compiled_context(self, specs: list[dict[str, Any]]) -> set[str]:
+        spec_root = (self._reins_dir / "spec").resolve()
+        read_specs: set[str] = set()
+        for spec in specs:
+            metadata = spec.get("metadata")
+            if not isinstance(metadata, dict):
+                continue
+            raw_path = metadata.get("path")
+            if not isinstance(raw_path, str):
+                continue
+            try:
+                path = Path(raw_path).resolve()
+                relative = path.relative_to(spec_root)
+            except ValueError:
+                continue
+            read_specs.add(self._normalize_spec_path(relative))
+        return read_specs
+
+    def _relative_reads_for_checklist(
+        self,
+        checklist: Checklist,
+        read_specs: set[str],
+    ) -> set[str]:
+        spec_root = (self._reins_dir / "spec").resolve()
+        checklist_root = checklist.spec_dir.resolve()
+        relative_reads: set[str] = set()
+        for read_spec in read_specs:
+            path = (spec_root / read_spec).resolve()
+            if not path.is_relative_to(checklist_root):
+                continue
+            relative_reads.add(path.relative_to(checklist_root).as_posix())
+        return relative_reads
+
+    def _serialize_checklist_item(
+        self,
+        checklist: Checklist,
+        item: Any,
+        read_specs: set[str],
+    ) -> dict[str, Any]:
+        normalized_target = None
+        if item.target is not None:
+            target_path = (checklist.spec_dir / item.target).resolve()
+            try:
+                normalized_target = self._normalize_spec_path(
+                    target_path.relative_to((self._reins_dir / "spec").resolve())
+                )
+            except ValueError:
+                normalized_target = self._normalize_spec_path(item.target)
+
+        return {
+            "text": item.text,
+            "target": normalized_target,
+            "description": item.description,
+            "checked": item.checked,
+            "complete": checklist._is_item_completed(item, read_specs),
+            "level": item.level,
+            "children": [
+                self._serialize_checklist_item(checklist, child, read_specs)
+                for child in item.children
+            ],
+        }
+
+    def _relative_to_repo(self, path: Path) -> str:
+        try:
+            return path.resolve().relative_to(self.repo_root.resolve()).as_posix()
+        except ValueError:
+            return path.as_posix()
+
+    def _normalize_spec_path(self, path: str | Path) -> str:
+        raw = path.as_posix() if isinstance(path, Path) else str(path)
+        return raw.replace("\\", "/").lstrip("./")
+
     async def _emit_context_injected(
         self,
         *,
@@ -315,6 +463,7 @@ class ContextInjectionHook:
         task_metadata: dict[str, Any] | None,
         agent_context: list[dict[str, Any]],
         specs: list[dict[str, Any]],
+        checklist: dict[str, Any] | None,
     ) -> None:
         payload = {
             "agent_type": agent_type,
@@ -322,6 +471,8 @@ class ContextInjectionHook:
             "task_id": self._task_id(task_metadata),
             "agent_context_count": len(agent_context),
             "specs_count": len(specs),
+            "spec_identifiers": [spec["identifier"] for spec in specs],
+            "checklist": checklist,
         }
         await self._event_builder.commit(
             run_id=self._resolve_run_id(run_id),

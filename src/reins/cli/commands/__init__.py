@@ -1,5 +1,6 @@
 __all__ = [
     "developer",
+    "init",
     "journal",
     "migrate",
     "spec",
