@@ -66,6 +66,17 @@ class TaskContextProjection:
         # Decisions: task_id -> list of decisions
         self._decisions: dict[str, list[dict[str, Any]]] = {}
 
+        # Secondary indexes for fast queries
+        self._by_status: dict[TaskStatus, set[str]] = {
+            TaskStatus.PENDING: set(),
+            TaskStatus.IN_PROGRESS: set(),
+            TaskStatus.COMPLETED: set(),
+            TaskStatus.ARCHIVED: set(),
+        }
+        self._by_assignee: dict[str, set[str]] = {}
+        self._by_type: dict[str, set[str]] = {}
+        self._by_priority: dict[str, set[str]] = {}
+
     def apply_event(self, event: EventEnvelope) -> None:
         """Apply an event to update the projection state."""
         if event.type == TASK_CREATED:
@@ -105,6 +116,9 @@ class TaskContextProjection:
         self._event_history[metadata.task_id] = [payload]
         self._decisions[metadata.task_id] = []
 
+        # Update secondary indexes
+        self._index_task(metadata)
+
     def _apply_task_started(self, event: EventEnvelope) -> None:
         """Handle TaskStartedEvent."""
         payload = event.payload
@@ -112,12 +126,15 @@ class TaskContextProjection:
 
         if task_id in self._tasks:
             old_metadata = self._tasks[task_id]
-            self._tasks[task_id] = replace(
+            new_metadata = replace(
                 old_metadata,
                 status=TaskStatus.IN_PROGRESS,
                 assignee=payload["assignee"],
                 started_at=event.ts,
             )
+            self._unindex_task(old_metadata)
+            self._tasks[task_id] = new_metadata
+            self._index_task(new_metadata)
             self._event_history[task_id].append(payload)
 
     def _apply_task_completed(self, event: EventEnvelope) -> None:
@@ -127,11 +144,14 @@ class TaskContextProjection:
 
         if task_id in self._tasks:
             old_metadata = self._tasks[task_id]
-            self._tasks[task_id] = replace(
+            new_metadata = replace(
                 old_metadata,
                 status=TaskStatus.COMPLETED,
                 completed_at=event.ts,
             )
+            self._unindex_task(old_metadata)
+            self._tasks[task_id] = new_metadata
+            self._index_task(new_metadata)
             self._event_history[task_id].append(payload)
 
     def _apply_task_archived(self, event: EventEnvelope) -> None:
@@ -141,10 +161,13 @@ class TaskContextProjection:
 
         if task_id in self._tasks:
             old_metadata = self._tasks[task_id]
-            self._tasks[task_id] = replace(
+            new_metadata = replace(
                 old_metadata,
                 status=TaskStatus.ARCHIVED,
             )
+            self._unindex_task(old_metadata)
+            self._tasks[task_id] = new_metadata
+            self._index_task(new_metadata)
             self._event_history[task_id].append(payload)
 
     def _apply_task_updated(self, event: EventEnvelope) -> None:
@@ -167,7 +190,10 @@ class TaskContextProjection:
                 new_metadata = {**old_metadata.metadata, **changes["metadata"]}
                 updates["metadata"] = new_metadata
 
-            self._tasks[task_id] = replace(old_metadata, **updates)
+            new_metadata = replace(old_metadata, **updates)
+            self._unindex_task(old_metadata)
+            self._tasks[task_id] = new_metadata
+            self._index_task(new_metadata)
             self._event_history[task_id].append(payload)
 
     def get_task(self, task_id: str) -> TaskMetadata | None:
@@ -258,3 +284,100 @@ class TaskContextProjection:
         self._tasks.clear()
         self._event_history.clear()
         self._decisions.clear()
+        self._by_status.clear()
+        self._by_assignee.clear()
+        self._by_type.clear()
+        self._by_priority.clear()
+
+    def _index_task(self, task: TaskMetadata) -> None:
+        """Add task to secondary indexes.
+
+        Args:
+            task: Task metadata to index
+        """
+        # Index by status
+        self._by_status[task.status].add(task.task_id)
+
+        # Index by assignee
+        if task.assignee not in self._by_assignee:
+            self._by_assignee[task.assignee] = set()
+        self._by_assignee[task.assignee].add(task.task_id)
+
+        # Index by type
+        if task.task_type not in self._by_type:
+            self._by_type[task.task_type] = set()
+        self._by_type[task.task_type].add(task.task_id)
+
+        # Index by priority
+        if task.priority not in self._by_priority:
+            self._by_priority[task.priority] = set()
+        self._by_priority[task.priority].add(task.task_id)
+
+    def _unindex_task(self, task: TaskMetadata) -> None:
+        """Remove task from secondary indexes.
+
+        Args:
+            task: Task metadata to unindex
+        """
+        # Unindex by status
+        self._by_status[task.status].discard(task.task_id)
+
+        # Unindex by assignee
+        if task.assignee in self._by_assignee:
+            self._by_assignee[task.assignee].discard(task.task_id)
+
+        # Unindex by type
+        if task.task_type in self._by_type:
+            self._by_type[task.task_type].discard(task.task_id)
+
+        # Unindex by priority
+        if task.priority in self._by_priority:
+            self._by_priority[task.priority].discard(task.task_id)
+
+    def get_tasks_by_status(self, status: TaskStatus) -> list[TaskMetadata]:
+        """Get tasks by status using secondary index.
+
+        Args:
+            status: Task status to filter by
+
+        Returns:
+            List of tasks with the given status
+        """
+        task_ids = self._by_status.get(status, set())
+        return [self._tasks[tid] for tid in task_ids if tid in self._tasks]
+
+    def get_tasks_by_assignee(self, assignee: str) -> list[TaskMetadata]:
+        """Get tasks by assignee using secondary index.
+
+        Args:
+            assignee: Assignee to filter by
+
+        Returns:
+            List of tasks assigned to the given assignee
+        """
+        task_ids = self._by_assignee.get(assignee, set())
+        return [self._tasks[tid] for tid in task_ids if tid in self._tasks]
+
+    def get_tasks_by_type(self, task_type: str) -> list[TaskMetadata]:
+        """Get tasks by type using secondary index.
+
+        Args:
+            task_type: Task type to filter by
+
+        Returns:
+            List of tasks of the given type
+        """
+        task_ids = self._by_type.get(task_type, set())
+        return [self._tasks[tid] for tid in task_ids if tid in self._tasks]
+
+    def get_tasks_by_priority(self, priority: str) -> list[TaskMetadata]:
+        """Get tasks by priority using secondary index.
+
+        Args:
+            priority: Priority to filter by
+
+        Returns:
+            List of tasks with the given priority
+        """
+        task_ids = self._by_priority.get(priority, set())
+        return [self._tasks[tid] for tid in task_ids if tid in self._tasks]
