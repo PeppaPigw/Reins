@@ -263,7 +263,7 @@ class RunOrchestrator:
             prd_content=prd_content,
             acceptance_criteria=acceptance_criteria,
             priority=priority,
-            assignee=assignee,
+            assignee=assignee or "unassigned",
             created_by="orchestrator",
             parent_task_id=parent_task_id,
             metadata=metadata,
@@ -300,7 +300,7 @@ class RunOrchestrator:
             raise RuntimeError("TaskManager not available")
 
         # Complete task via TaskManager
-        await self._task_manager.complete_task(task_id, outcome)
+        await self._task_manager.complete_task(task_id, outcome or {})
 
         # Clear active task if this was it
         if self._state and self._state.active_task_id == task_id:
@@ -801,6 +801,9 @@ class RunOrchestrator:
             repairing_command_id=state.repairing_command_id,
             last_completed_repair=state.last_completed_repair,
             working_set_manifest_ref=state.working_set_manifest_ref,
+            seed_context_manifest=state.seed_context_manifest,
+            current_context_manifest=state.current_context_manifest,
+            active_task_id=state.active_task_id,
         )
         await self._snapshots.save(snapshot)
         return snapshot

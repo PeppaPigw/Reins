@@ -16,12 +16,13 @@ class SandboxedShellAdapter(Adapter):
     def __init__(self, adapter_id: str = "shell.sandboxed") -> None:
         self.adapter_id = adapter_id
         self._sessions: dict[str, dict] = {}
+        self._handle_kind = "shell_sandboxed"
 
     async def open(self, spec: dict) -> Handle:
         cwd = str(Path(spec.get("cwd", ".")).resolve())
         env = dict(spec.get("env", {}))
         handle = Handle(
-            adapter_kind="shell",
+            adapter_kind=self._handle_kind,
             adapter_id=self.adapter_id,
             metadata={"cwd": cwd, "sandboxed": True},
         )
@@ -97,7 +98,7 @@ class SandboxedShellAdapter(Adapter):
 
     async def thaw(self, frozen: dict) -> Handle:
         handle = Handle(
-            adapter_kind=frozen.get("adapter_kind", "shell"),
+            adapter_kind=frozen.get("adapter_kind", self._handle_kind),
             adapter_id=frozen.get("adapter_id", self.adapter_id),
             metadata={"cwd": frozen["cwd"], "sandboxed": True},
             handle_id=frozen["handle_id"],
@@ -112,7 +113,7 @@ class SandboxedShellAdapter(Adapter):
     async def reset(self, handle: Handle) -> Handle:
         session = self._sessions[handle.handle_id]
         new_handle = Handle(
-            adapter_kind="shell",
+            adapter_kind=self._handle_kind,
             adapter_id=self.adapter_id,
             metadata={"cwd": session["cwd"], "sandboxed": True},
         )
@@ -137,12 +138,13 @@ class NetworkShellAdapter(Adapter):
     def __init__(self, adapter_id: str = "shell.network") -> None:
         self.adapter_id = adapter_id
         self._sessions: dict[str, dict] = {}
+        self._handle_kind = "shell_network"
 
     async def open(self, spec: dict) -> Handle:
         cwd = str(Path(spec.get("cwd", ".")).resolve())
         env = dict(spec.get("env", {}))
         handle = Handle(
-            adapter_kind="shell",
+            adapter_kind=self._handle_kind,
             adapter_id=self.adapter_id,
             metadata={"cwd": cwd, "network": True},
         )
@@ -190,7 +192,7 @@ class NetworkShellAdapter(Adapter):
 
     async def thaw(self, frozen: dict) -> Handle:
         handle = Handle(
-            adapter_kind=frozen.get("adapter_kind", "shell"),
+            adapter_kind=frozen.get("adapter_kind", self._handle_kind),
             adapter_id=frozen.get("adapter_id", self.adapter_id),
             metadata={"cwd": frozen["cwd"], "network": True},
             handle_id=frozen["handle_id"],
@@ -205,7 +207,7 @@ class NetworkShellAdapter(Adapter):
     async def reset(self, handle: Handle) -> Handle:
         session = self._sessions[handle.handle_id]
         new_handle = Handle(
-            adapter_kind="shell",
+            adapter_kind=self._handle_kind,
             adapter_id=self.adapter_id,
             metadata={"cwd": session["cwd"], "network": True},
         )

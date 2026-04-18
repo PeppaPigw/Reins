@@ -4,12 +4,26 @@ import asyncio
 import json
 import os
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import AsyncIterator
 
 import aiofiles  # type: ignore[import-untyped]
 
 from reins.kernel.event.envelope import EventEnvelope, event_from_dict, event_to_dict
+from reins.serde import parse_dt
+
+TimestampLike = datetime | str
+
+
+def normalize_timestamp(value: TimestampLike) -> datetime:
+    """Normalize supported timestamp inputs to an aware UTC datetime."""
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+    normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+    parsed = parse_dt(normalized)
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
 
 
 class EventJournal:
@@ -68,6 +82,19 @@ class EventJournal:
                 event = event_from_dict(json.loads(line))
                 if event.run_id == run_id and event.seq >= from_seq:
                     yield event
+
+    async def read_until(
+        self,
+        run_id: str,
+        *,
+        timestamp: TimestampLike,
+        from_seq: int = 0,
+    ) -> AsyncIterator[EventEnvelope]:
+        """Yield events for a run up to and including the supplied timestamp."""
+        cutoff = normalize_timestamp(timestamp)
+        async for event in self.read_from(run_id, from_seq=from_seq):
+            if event.ts <= cutoff:
+                yield event
 
     async def get_seq(self, run_id: str) -> int:
         if run_id in self._seq_cache:

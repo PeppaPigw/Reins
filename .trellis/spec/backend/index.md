@@ -25,6 +25,11 @@ trusted kernel planes, not request-response controller layers.
 8. [Worktree Patterns](./worktree-patterns.md) - Parallel agent execution
 9. [Migration Patterns](./migration-patterns.md) - Template evolution
 10. [CLI Patterns](./cli-patterns.md) - Command-line interface
+11. [Time Travel Patterns](./time-travel-patterns.md) - Historical state reconstruction
+12. [Policy Engine Patterns](./policy-patterns.md) - Declarative execution control
+13. [Context Compilation Patterns](./context-compilation-patterns.md) - Multi-source context optimization
+14. [Approval Patterns](./approval-patterns.md) - Human decision tracking
+15. [Integration Test Patterns](./integration-test-patterns.md) - End-to-end testing
 
 ## Runtime Modules
 
@@ -34,6 +39,10 @@ trusted kernel planes, not request-response controller layers.
   Canonical trusted event envelope and checksum logic.
 - `src/reins/kernel/event/journal.py`
   Append-only JSONL journal for replayable event streams.
+- `src/reins/kernel/event/time_travel.py`
+  Historical state reconstruction through event replay.
+- `src/reins/kernel/event/projections.py`
+  Derived views from event streams (agent activity, task timelines).
 - `src/reins/kernel/reducer/state.py`
   Mutable runtime state and persisted snapshot view models.
 - `src/reins/kernel/reducer/reducer.py`
@@ -46,6 +55,12 @@ trusted kernel planes, not request-response controller layers.
   Canonical capability taxonomy and deterministic risk tiers.
 - `src/reins/policy/engine.py`
   Policy decisions and grant issuance.
+- `src/reins/policy/rules.py`
+  Declarative policy rules with safe condition evaluation.
+- `src/reins/policy/constraints.py`
+  Constraint registry for rate limiting and resource bounds.
+- `src/reins/policy/audit.py`
+  Policy decision audit trail.
 - `src/reins/execution/adapter.py`
   Handle-based adapter contract.
 - `src/reins/execution/adapters/*.py`
@@ -74,6 +89,18 @@ trusted kernel planes, not request-response controller layers.
   Migration manifest and operation types.
 - `src/reins/migration/version.py`
   Semantic version comparison and filtering.
+- `src/reins/context/compiler.py`
+  Multi-source context compilation with optimization.
+- `src/reins/context/optimizer.py`
+  Context deduplication and priority ordering.
+- `src/reins/context/cache.py`
+  TTL-based context caching.
+- `src/reins/approval/ledger.py`
+  Approval request and grant tracking.
+- `src/reins/approval/delegation.py`
+  Bounded approval delegation with constraints.
+- `src/reins/approval/audit.py`
+  Approval decision audit trail.
 - `src/reins/cli/main.py`
   CLI entry point and command dispatcher.
 - `src/reins/cli/utils.py`
