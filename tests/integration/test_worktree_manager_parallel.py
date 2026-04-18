@@ -73,7 +73,7 @@ verify:
 
     assert state.worktree_path.exists()
     assert (state.worktree_path / ".reins" / ".developer").read_text(encoding="utf-8") == "agent-name\n"
-    assert (state.worktree_path / ".reins" / ".current-task").read_text(encoding="utf-8").strip() == ".reins/tasks/task-1"
+    assert (state.worktree_path / ".reins" / ".current-task").read_text(encoding="utf-8").strip() == "tasks/task-1"
 
     record = await registry.get("agent-1")
     assert record is not None

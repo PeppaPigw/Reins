@@ -51,6 +51,8 @@ def load_current_task(repo_root: Path) -> str | None:
         # Format: "tasks/{task_id}"
         if content.startswith("tasks/"):
             return content.split("/")[-1]
+        if content.startswith(".reins/tasks/") or content.startswith(".trellis/tasks/"):
+            return content.split("/")[-1]
         return None
     except Exception:
         return None

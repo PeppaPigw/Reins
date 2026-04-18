@@ -650,11 +650,4 @@ class WorktreeManager:
         return f"{normalized}-{suffix}"
 
     def _resolve_task_pointer(self, task_id: str) -> str:
-        candidates = (
-            Path(".reins/tasks") / task_id,
-            Path(".trellis/tasks") / task_id,
-        )
-        for candidate in candidates:
-            if (self._repo_root / candidate).exists():
-                return str(candidate)
-        return str(candidates[0])
+        return str(Path("tasks") / task_id)

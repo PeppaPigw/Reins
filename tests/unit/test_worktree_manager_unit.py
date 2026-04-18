@@ -345,5 +345,5 @@ async def test_cleanup_idle_orphans_and_helper_methods(tmp_path: Path) -> None:
     assert no_registry_manager._default_worktree_name("agent 1", "task 1").startswith("task-1-agent-1")
 
     (repo_root / ".trellis" / "tasks" / "task-1").mkdir(parents=True)
-    assert no_registry_manager._resolve_task_pointer("task-1") == ".trellis/tasks/task-1"
-    assert no_registry_manager._resolve_task_pointer("missing") == ".reins/tasks/missing"
+    assert no_registry_manager._resolve_task_pointer("task-1") == "tasks/task-1"
+    assert no_registry_manager._resolve_task_pointer("missing") == "tasks/missing"
