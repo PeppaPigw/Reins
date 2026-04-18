@@ -1,0 +1,30 @@
+# Frontend Specifications
+
+## Pre-Development Checklist
+
+Before starting frontend work, read:
+
+- [ ] `component-patterns.md` - Component design patterns and best practices
+- [ ] `state-management.md` - State management patterns
+- [ ] `styling.md` - Styling conventions and theme usage
+- [ ] `accessibility.md` - Accessibility requirements and testing
+- [ ] `testing.md` - Frontend testing strategies
+
+---
+
+## Overview
+
+This directory contains frontend-specific specifications and patterns.
+
+## Contents
+
+- **component-patterns.md** - Component structure, props patterns, composition
+- **state-management.md** - Local state, global state, data fetching
+- **styling.md** - CSS conventions, theme system, responsive design
+- **accessibility.md** - ARIA labels, keyboard navigation, screen reader support
+- **testing.md** - Component tests, integration tests, visual regression
+
+## Related Specs
+
+- See `../guides/` for cross-layer patterns
+- See `../unit-test/` for testing conventions

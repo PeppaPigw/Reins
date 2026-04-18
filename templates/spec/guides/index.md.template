@@ -1,0 +1,29 @@
+# Development Guides
+
+## Pre-Development Checklist
+
+Before starting any work, read:
+
+- [ ] `architecture.md` - System architecture and design principles
+- [ ] `data-flow.md` - How data flows through the system
+- [ ] `error-propagation.md` - How errors propagate across layers
+- [ ] `deployment.md` - Deployment process and environment setup
+
+---
+
+## Overview
+
+This directory contains cross-layer guides and architectural documentation.
+
+## Contents
+
+- **architecture.md** - Overall system architecture, module boundaries
+- **data-flow.md** - Request/response flow, data transformations
+- **error-propagation.md** - Error handling across layers
+- **deployment.md** - Build process, deployment steps, environment config
+
+## Related Specs
+
+- See `../backend/` for backend-specific patterns
+- See `../frontend/` for frontend-specific patterns
+- See `../unit-test/` for testing conventions

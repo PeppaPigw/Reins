@@ -1,0 +1,30 @@
+# Backend Specifications
+
+## Pre-Development Checklist
+
+Before starting backend work, read:
+
+- [ ] `error-handling.md` - Error handling patterns and conventions
+- [ ] `conventions.md` - Code style and naming conventions
+- [ ] `api-design.md` - API endpoint design guidelines
+- [ ] `database.md` - Database schema and migration patterns
+- [ ] `testing.md` - Backend testing strategies
+
+---
+
+## Overview
+
+This directory contains backend-specific specifications and patterns.
+
+## Contents
+
+- **error-handling.md** - How to handle errors, exceptions, and edge cases
+- **conventions.md** - Naming conventions, code style, project structure
+- **api-design.md** - REST API design patterns, request/response formats
+- **database.md** - Schema design, migrations, query patterns
+- **testing.md** - Unit tests, integration tests, test data management
+
+## Related Specs
+
+- See `../guides/` for cross-layer patterns
+- See `../unit-test/` for testing conventions

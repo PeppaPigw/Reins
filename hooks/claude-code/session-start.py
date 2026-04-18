@@ -11,6 +11,7 @@ Output is formatted as <system-reminder> tags for Claude Code.
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -99,7 +100,46 @@ def load_prd(repo_root: Path, task_id: str) -> str | None:
         return None
 
 
-def load_relevant_specs(repo_root: Path, task_type: str) -> list[tuple[str, str]]:
+def parse_checklist(content: str) -> list[tuple[bool, str, str | None]]:
+    """Parse checklist items from index.md content.
+
+    Args:
+        content: Index.md file content
+
+    Returns:
+        List of (checked, spec_file, description) tuples
+    """
+    items = []
+    lines = content.split("\n")
+    in_checklist = False
+
+    # Regex patterns
+    checklist_header = re.compile(r"^##\s+Pre-Development Checklist", re.IGNORECASE)
+    checklist_item = re.compile(r"^-\s+\[([ x])\]\s+`?([^`\s]+\.md)`?(?:\s+-\s+(.+))?")
+
+    for line in lines:
+        # Check for checklist header
+        if checklist_header.match(line):
+            in_checklist = True
+            continue
+
+        # Check for next section (ends checklist)
+        if in_checklist and line.startswith("##"):
+            break
+
+        # Parse checklist items
+        if in_checklist:
+            match = checklist_item.match(line)
+            if match:
+                checked = match.group(1).lower() == "x"
+                spec_file = match.group(2)
+                description = match.group(3) if match.group(3) else None
+                items.append((checked, spec_file, description))
+
+    return items
+
+
+def load_relevant_specs(repo_root: Path, task_type: str) -> tuple[list[tuple[str, str]], dict[str, list[tuple[bool, str, str | None]]]]:
     """Load relevant specs based on task type.
 
     Args:
@@ -107,13 +147,16 @@ def load_relevant_specs(repo_root: Path, task_type: str) -> list[tuple[str, str]
         task_type: Task type (e.g., 'backend', 'frontend', 'fullstack')
 
     Returns:
-        List of (spec_path, spec_content) tuples
+        Tuple of (specs, checklists) where:
+        - specs: List of (spec_path, spec_content) tuples
+        - checklists: Dict mapping layer name to list of (checked, spec_file, description) tuples
     """
     specs = []
+    checklists = {}
     spec_dir = repo_root / ".reins" / "spec"
 
     if not spec_dir.exists():
-        return specs
+        return specs, checklists
 
     # Determine which spec directories to load based on task type
     spec_dirs = []
@@ -125,26 +168,32 @@ def load_relevant_specs(repo_root: Path, task_type: str) -> list[tuple[str, str]
     # Always include guides
     spec_dirs.append("guides")
 
-    # Load index.md from each relevant directory
+    # Load index.md from each relevant directory and parse checklists
     for dir_name in spec_dirs:
         index_path = spec_dir / dir_name / "index.md"
         if index_path.exists():
             try:
                 content = index_path.read_text(encoding="utf-8")
                 specs.append((str(index_path.relative_to(repo_root)), content))
+
+                # Parse checklist from index
+                items = parse_checklist(content)
+                if items:
+                    checklists[dir_name] = items
             except Exception:
                 pass
 
-    return specs
+    return specs, checklists
 
 
-def format_output(task_metadata: dict[str, Any], prd_content: str | None, specs: list[tuple[str, str]]) -> str:
+def format_output(task_metadata: dict[str, Any], prd_content: str | None, specs: list[tuple[str, str]], checklists: dict[str, list[tuple[bool, str, str | None]]]) -> str:
     """Format output as system-reminder tags.
 
     Args:
         task_metadata: Task metadata dictionary
         prd_content: PRD content
         specs: List of (spec_path, spec_content) tuples
+        checklists: Dict mapping layer name to list of (checked, spec_file, description) tuples
 
     Returns:
         Formatted output string
@@ -190,6 +239,27 @@ def format_output(task_metadata: dict[str, Any], prd_content: str | None, specs:
             lines.append("")
 
         lines.append("</relevant-specs>")
+        lines.append("")
+
+    if checklists:
+        lines.append("<pre-development-checklist>")
+        lines.append("## Pre-Development Checklist")
+        lines.append("")
+        lines.append("Before starting work, ensure you have read:")
+        lines.append("")
+
+        for layer_name, items in checklists.items():
+            lines.append(f"### {layer_name.capitalize()}")
+            lines.append("")
+            for checked, spec_file, description in items:
+                check_mark = "x" if checked else " "
+                if description:
+                    lines.append(f"- [{check_mark}] `{spec_file}` - {description}")
+                else:
+                    lines.append(f"- [{check_mark}] `{spec_file}`")
+            lines.append("")
+
+        lines.append("</pre-development-checklist>")
 
     return "\n".join(lines)
 
@@ -224,10 +294,10 @@ def main() -> int:
 
         # Load relevant specs
         task_type = task_metadata.get("task_type", "backend")
-        specs = load_relevant_specs(repo_root, task_type)
+        specs, checklists = load_relevant_specs(repo_root, task_type)
 
         # Format and output
-        output = format_output(task_metadata, prd_content, specs)
+        output = format_output(task_metadata, prd_content, specs, checklists)
         print(output)
 
         return 0

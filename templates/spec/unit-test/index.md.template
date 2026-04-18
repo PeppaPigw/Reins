@@ -1,0 +1,29 @@
+# Unit Testing Conventions
+
+## Pre-Development Checklist
+
+Before writing tests, read:
+
+- [ ] `conventions.md` - Test naming, structure, and organization
+- [ ] `mock-strategies.md` - When and how to use mocks
+- [ ] `fixtures.md` - Test data and fixture patterns
+- [ ] `coverage.md` - Coverage requirements and strategies
+
+---
+
+## Overview
+
+This directory contains testing conventions and best practices.
+
+## Contents
+
+- **conventions.md** - Test file naming, test structure, assertion patterns
+- **mock-strategies.md** - Mocking strategies, when to use real vs mock dependencies
+- **fixtures.md** - Test data management, fixture factories, cleanup
+- **coverage.md** - Coverage targets, what to test, what to skip
+
+## Related Specs
+
+- See `../backend/testing.md` for backend-specific testing
+- See `../frontend/testing.md` for frontend-specific testing
+- See `../guides/` for integration testing patterns
