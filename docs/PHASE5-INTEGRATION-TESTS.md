@@ -282,18 +282,42 @@ def simulate_agent_work(worktree_path: Path, duration: float):
 
 ### Run all integration tests:
 ```bash
-pytest tests/integration/ -v
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest tests/integration -q
 ```
 
 ### Run specific workflow:
 ```bash
-pytest tests/integration/test_full_workflow.py -v
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest tests/integration/test_full_workflow.py -q
 ```
 
 ### Run with coverage:
 ```bash
-pytest tests/integration/ --cov=src/reins --cov-report=html
+python -m coverage erase
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m coverage run \
+  --source=src/reins/task,src/reins/isolation,src/reins/kernel,src/reins/memory,src/reins/policy,src/reins/migration \
+  -m pytest tests/integration -q
+python -m coverage report -m
 ```
+
+### Troubleshooting
+
+- `pytest --cov ...` fails with `unrecognized arguments`
+  This repo does not currently install `pytest-cov`; use `coverage.py` directly.
+
+- Worktree creation fails before the first test runs
+  Ensure the temporary repo sets `git config user.name` and `git config user.email` before committing.
+
+- Orphan worktree cleanup tests fail because the branch is already checked out
+  Create the synthetic orphan from detached `HEAD` rather than checking out the main branch twice.
+
+- Idle worktree cleanup does not remove synthetic worktrees
+  Copied `.reins/` and `.trellis/` metadata can create untracked content that blocks non-force removal; remove that copied metadata before exercising the idle cleanup path.
+
+- Full workflow resume loses open shell handles
+  The shell adapter handle kinds must match the dispatcher freeze/thaw registry names (`shell_sandboxed`, `shell_network`).
+
+- Task context is missing inside a child worktree
+  Agent worktree creation must copy `.reins/tasks/<task_id>` into the new worktree before writing `.current-task`.
 
 ## Success Criteria
 

@@ -199,6 +199,7 @@ class WorktreeManager:
 
         try:
             if task_id is not None:
+                await self._copy_task_artifacts(state.worktree_path, task_id)
                 await self._write_current_task_files(state.worktree_path, task_id)
 
             registry = self._get_agent_registry(create_default=True)
@@ -576,6 +577,16 @@ class WorktreeManager:
 
         dest.parent.mkdir(parents=True, exist_ok=True)
         await asyncio.to_thread(shutil.copy2, src, dest)
+
+    async def _copy_task_artifacts(self, worktree_path: Path, task_id: str) -> None:
+        """Copy exported task artifacts so worktrees can read local task context."""
+        source = self._repo_root / ".reins" / "tasks" / task_id
+        if not source.exists():
+            return
+
+        destination = worktree_path / ".reins" / "tasks" / task_id
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(shutil.copytree, source, destination, dirs_exist_ok=True)
 
     async def _write_current_task_files(self, worktree_path: Path, task_id: str) -> None:
         """Write current-task markers in the worktree for Reins and Trellis hooks."""

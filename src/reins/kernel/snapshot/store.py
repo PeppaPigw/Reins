@@ -55,6 +55,9 @@ def _snapshot_from_dict(data: dict) -> StateSnapshot:
         repairing_command_id=data.get("repairing_command_id"),
         last_completed_repair=last_completed_repair,
         working_set_manifest_ref=data.get("working_set_manifest_ref"),
+        seed_context_manifest=data.get("seed_context_manifest"),
+        current_context_manifest=data.get("current_context_manifest"),
+        active_task_id=data.get("active_task_id"),
     )
 
 

@@ -142,6 +142,15 @@ class DehydrationMachine:
                 snapshot.last_completed_repair if snapshot is not None else None
             ),
             last_checkpoint_id=manifest.checkpoint_id,
+            seed_context_manifest=(
+                snapshot.seed_context_manifest if snapshot is not None else None
+            ),
+            current_context_manifest=(
+                snapshot.current_context_manifest if snapshot is not None else None
+            ),
+            active_task_id=(
+                snapshot.active_task_id if snapshot is not None else None
+            ),
         )
 
     def _filter_expired_grants(self, grants: list) -> list:
