@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from reins.platform.types import HookType, PlatformType
+from reins.platform.types import ContextFormat, HookType, PlatformType
 
 
 @dataclass(frozen=True)
@@ -44,6 +44,12 @@ class PlatformCapabilities:
     supported_hooks: list[HookType] = field(default_factory=list)
     """List of hook types supported by this platform"""
 
+    supports_jsonl_context: bool = False
+    """Whether the platform supports JSONL context format"""
+
+    preferred_context_format: ContextFormat = ContextFormat.MARKDOWN
+    """Preferred format for context injection"""
+
 
 @dataclass(frozen=True)
 class PlatformConfig:
@@ -75,6 +81,9 @@ class PlatformConfig:
 
     template_dirs: list[str] = field(default_factory=list)
     """Template directories for initialization"""
+
+    cli_flag: str | None = None
+    """CLI flag for platform selection (e.g., 'claude', 'codex')"""
 
     metadata: dict[str, Any] = field(default_factory=dict)
     """Additional platform-specific metadata"""
@@ -143,12 +152,15 @@ class PlatformRegistry:
                         HookType.CONTEXT_INJECT,
                         HookType.TOOL_CALL,
                     ],
+                    supports_jsonl_context=True,
+                    preferred_context_format=ContextFormat.JSONL,
                 ),
                 hook_dir="hooks",
                 agent_dir="agents",
                 command_dir="commands",
                 settings_file="settings.json",
                 template_dirs=["common", "claude"],
+                cli_flag="claude",
                 metadata={
                     "cli_flag": "claude",
                     "has_python_hooks": True,
@@ -177,11 +189,14 @@ class PlatformRegistry:
                         HookType.SUBAGENT_SPAWN,
                         HookType.CONTEXT_INJECT,
                     ],
+                    supports_jsonl_context=True,
+                    preferred_context_format=ContextFormat.JSONL,
                 ),
                 hook_dir="hooks",
                 agent_dir="agents",
                 settings_file="config.json",
                 template_dirs=["common", "codex"],
+                cli_flag="codex",
                 metadata={
                     "cli_flag": "codex",
                     "has_python_hooks": True,
@@ -205,9 +220,12 @@ class PlatformRegistry:
                     supports_context_injection=False,
                     max_context_tokens=100_000,
                     supported_hooks=[],
+                    supports_jsonl_context=False,
+                    preferred_context_format=ContextFormat.MARKDOWN,
                 ),
                 settings_file="settings.json",
                 template_dirs=["common", "cursor"],
+                cli_flag="cursor",
                 metadata={
                     "cli_flag": "cursor",
                     "ide_integration": True,
@@ -234,10 +252,13 @@ class PlatformRegistry:
                         HookType.SESSION_START,
                         HookType.CONTEXT_INJECT,
                     ],
+                    supports_jsonl_context=False,
+                    preferred_context_format=ContextFormat.MARKDOWN,
                 ),
                 hook_dir="hooks",
                 settings_file="config.yml",
                 template_dirs=["common", "aider"],
+                cli_flag="aider",
                 metadata={
                     "cli_flag": "aider",
                     "has_python_hooks": True,
@@ -261,9 +282,12 @@ class PlatformRegistry:
                     supports_context_injection=False,
                     max_context_tokens=100_000,
                     supported_hooks=[],
+                    supports_jsonl_context=False,
+                    preferred_context_format=ContextFormat.MARKDOWN,
                 ),
                 settings_file="config.json",
                 template_dirs=["common", "continue"],
+                cli_flag="continue",
                 metadata={
                     "cli_flag": "continue",
                     "vscode_extension": True,
@@ -287,9 +311,12 @@ class PlatformRegistry:
                     supports_context_injection=False,
                     max_context_tokens=100_000,
                     supported_hooks=[],
+                    supports_jsonl_context=False,
+                    preferred_context_format=ContextFormat.MARKDOWN,
                 ),
                 settings_file="config.json",
                 template_dirs=["common", "cody"],
+                cli_flag="cody",
                 metadata={
                     "cli_flag": "cody",
                     "vscode_extension": True,
@@ -352,6 +379,32 @@ class PlatformRegistry:
             config
             for config in self._platforms.values()
             if hook_type in config.capabilities.supported_hooks
+        ]
+
+    def get_by_cli_flag(self, cli_flag: str) -> PlatformConfig | None:
+        """Get platform configuration by CLI flag.
+
+        Args:
+            cli_flag: CLI flag (e.g., 'claude', 'codex')
+
+        Returns:
+            Platform configuration or None if not found
+        """
+        for config in self._platforms.values():
+            if config.cli_flag == cli_flag:
+                return config
+        return None
+
+    def list_with_jsonl_support(self) -> list[PlatformConfig]:
+        """List platforms that support JSONL context format.
+
+        Returns:
+            List of platforms with JSONL support
+        """
+        return [
+            config
+            for config in self._platforms.values()
+            if config.capabilities.supports_jsonl_context
         ]
 
 

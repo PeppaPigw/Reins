@@ -3,6 +3,7 @@
 import pytest
 
 from reins.platform import (
+    ContextFormat,
     PlatformCapabilities,
     PlatformConfig,
     PlatformRegistry,
@@ -265,11 +266,93 @@ def test_platform_metadata():
     """Test platform metadata fields."""
     claude = get_platform(PlatformType.CLAUDE_CODE)
     assert claude is not None
-    assert claude.metadata["cli_flag"] == "claude"
+    assert claude.cli_flag == "claude"
     assert claude.metadata["has_python_hooks"] is True
     assert claude.metadata["supports_slash_commands"] is True
 
     cursor = get_platform(PlatformType.CURSOR)
     assert cursor is not None
-    assert cursor.metadata["cli_flag"] == "cursor"
+    assert cursor.cli_flag == "cursor"
     assert cursor.metadata["ide_integration"] is True
+
+
+def test_registry_get_by_cli_flag():
+    """Test getting platform by CLI flag."""
+    registry = PlatformRegistry()
+
+    # Get by CLI flag
+    claude = registry.get_by_cli_flag("claude")
+    assert claude is not None
+    assert claude.platform_type == PlatformType.CLAUDE_CODE
+
+    codex = registry.get_by_cli_flag("codex")
+    assert codex is not None
+    assert codex.platform_type == PlatformType.CODEX
+
+    # Non-existent flag
+    none_platform = registry.get_by_cli_flag("nonexistent")
+    assert none_platform is None
+
+
+def test_registry_list_with_jsonl_support():
+    """Test filtering platforms by JSONL support."""
+    registry = PlatformRegistry()
+
+    with_jsonl = registry.list_with_jsonl_support()
+    assert len(with_jsonl) > 0
+    assert all(p.capabilities.supports_jsonl_context for p in with_jsonl)
+
+    # Claude Code and Codex should support JSONL
+    platform_types = {p.platform_type for p in with_jsonl}
+    assert PlatformType.CLAUDE_CODE in platform_types
+    assert PlatformType.CODEX in platform_types
+
+
+def test_platform_context_format():
+    """Test platform context format preferences."""
+    claude = get_platform(PlatformType.CLAUDE_CODE)
+    assert claude is not None
+    assert claude.capabilities.supports_jsonl_context is True
+    assert claude.capabilities.preferred_context_format == ContextFormat.JSONL
+
+    cursor = get_platform(PlatformType.CURSOR)
+    assert cursor is not None
+    assert cursor.capabilities.supports_jsonl_context is False
+    assert cursor.capabilities.preferred_context_format == ContextFormat.MARKDOWN
+
+
+def test_platform_capabilities_jsonl():
+    """Test JSONL capability in platform capabilities."""
+    caps_with_jsonl = PlatformCapabilities(
+        supports_jsonl_context=True,
+        preferred_context_format=ContextFormat.JSONL,
+    )
+    assert caps_with_jsonl.supports_jsonl_context is True
+    assert caps_with_jsonl.preferred_context_format == ContextFormat.JSONL
+
+    caps_without_jsonl = PlatformCapabilities(
+        supports_jsonl_context=False,
+        preferred_context_format=ContextFormat.MARKDOWN,
+    )
+    assert caps_without_jsonl.supports_jsonl_context is False
+    assert caps_without_jsonl.preferred_context_format == ContextFormat.MARKDOWN
+
+
+def test_platform_config_cli_flag():
+    """Test CLI flag in platform config."""
+    config = PlatformConfig(
+        platform_type=PlatformType.CLAUDE_CODE,
+        name="Claude Code",
+        config_dir=".claude",
+        capabilities=PlatformCapabilities(),
+        cli_flag="claude",
+    )
+    assert config.cli_flag == "claude"
+
+    config_no_flag = PlatformConfig(
+        platform_type=PlatformType.CUSTOM,
+        name="Custom",
+        config_dir=".custom",
+        capabilities=PlatformCapabilities(),
+    )
+    assert config_no_flag.cli_flag is None

@@ -6,3 +6,5 @@ AGENTS.md
 *.DS_Store
 amp
 pytest/
+docs/
+task_plan.md

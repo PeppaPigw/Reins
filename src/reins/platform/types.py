@@ -71,3 +71,22 @@ class HookType(str, Enum):
 
     TOOL_CALL = "tool_call"
     """Hook executed before/after tool calls"""
+
+
+class ContextFormat(str, Enum):
+    """Format for context injection."""
+
+    JSONL = "jsonl"
+    """JSONL format (one JSON object per line)"""
+
+    MARKDOWN = "markdown"
+    """Markdown format"""
+
+    YAML = "yaml"
+    """YAML format"""
+
+    JSON = "json"
+    """JSON format"""
+
+    PLAIN_TEXT = "plain_text"
+    """Plain text format"""
