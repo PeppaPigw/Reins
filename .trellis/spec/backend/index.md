@@ -24,6 +24,7 @@ trusted kernel planes, not request-response controller layers.
 7. [Logging Guidelines](./logging-guidelines.md)
 8. [Worktree Patterns](./worktree-patterns.md) - Parallel agent execution
 9. [Migration Patterns](./migration-patterns.md) - Template evolution
+10. [CLI Patterns](./cli-patterns.md) - Command-line interface
 
 ## Runtime Modules
 
@@ -73,6 +74,12 @@ trusted kernel planes, not request-response controller layers.
   Migration manifest and operation types.
 - `src/reins/migration/version.py`
   Semantic version comparison and filtering.
+- `src/reins/cli/main.py`
+  CLI entry point and command dispatcher.
+- `src/reins/cli/utils.py`
+  Shared CLI utilities (repo discovery, formatting).
+- `src/reins/cli/commands/*.py`
+  Command groups: task, spec, developer, migrate, worktree, journal, status.
 
 ## Trusted Boundary
 
