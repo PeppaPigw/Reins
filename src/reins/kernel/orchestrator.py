@@ -45,6 +45,8 @@ from reins.policy.approval.ledger import (
 from reins.policy.capabilities import CAPABILITY_RISK_TIERS
 from reins.policy.engine import PolicyEngine
 from reins.serde import to_primitive
+from reins.task.manager import TaskManager
+from reins.task.projection import TaskContextProjection
 
 
 class RunOrchestrator:
@@ -71,6 +73,8 @@ class RunOrchestrator:
         # Reins v2.0: New components
         context_compiler_v2: ContextCompilerV2 | None = None,
         spec_projection: ContextSpecProjection | None = None,
+        task_manager: TaskManager | None = None,
+        task_projection: TaskContextProjection | None = None,
     ) -> None:
         self._builder = EventBuilder(journal)
         self._journal = journal
@@ -89,6 +93,10 @@ class RunOrchestrator:
         # Reins v2.0: Context injection components
         self._context_v2 = context_compiler_v2
         self._spec_projection = spec_projection
+
+        # Reins v2.0: Task management components
+        self._task_manager = task_manager
+        self._task_projection = task_projection
 
     @property
     def state(self) -> RunState | None:
@@ -126,7 +134,8 @@ class RunOrchestrator:
 
         Args:
             token_budget: Token budget for context (uses default if None)
-            task_state: Current task state (if any)
+            task_state: Current task state (if any). If None, will auto-load
+                       from active task.
 
         Returns:
             Context manifest as dict (or None if v2 compiler not available)
@@ -137,17 +146,26 @@ class RunOrchestrator:
 
         assert self._state is not None
 
+        # Auto-load task state from active task if not provided
+        if task_state is None and self._state.active_task_id:
+            task_state = self.get_active_task_context()
+
         # Get granted capabilities from policy engine
         granted_capabilities = set()
         for grant_ref in self._state.active_grants:
             granted_capabilities.add(grant_ref.capability)
+
+        # Determine scope based on task state
+        scope = "workspace"
+        if task_state and task_state.get("task_id"):
+            scope = f"task:{task_state['task_id']}"
 
         # Compile seed context
         manifest = self._context_v2.seed_context(
             task_state=task_state,
             granted_capabilities=granted_capabilities,
             token_budget=token_budget,
-            scope="workspace",
+            scope=scope,
         )
 
         # Convert to dict for storage in state
@@ -177,6 +195,116 @@ class RunOrchestrator:
             Active task ID or None
         """
         return self._state.active_task_id if self._state else None
+
+    # ------------------------------------------------------------------
+    # Reins v2.0: Task Management Integration
+    # ------------------------------------------------------------------
+    def get_active_task_context(self) -> dict[str, Any] | None:
+        """Get the context for the currently active task.
+
+        Returns:
+            Task context dict or None if no active task or task not found
+        """
+        if not self._task_projection or not self._state:
+            return None
+
+        task_id = self._state.active_task_id
+        if not task_id:
+            return None
+
+        task_context = self._task_projection.get_task_context(task_id)
+        if not task_context:
+            return None
+
+        # Convert to dict for use in context compilation
+        return {
+            "task_id": task_context.metadata.task_id,
+            "task_type": task_context.metadata.task_type,
+            "title": task_context.metadata.title,
+            "prd_content": task_context.metadata.prd_content,
+            "acceptance_criteria": task_context.metadata.acceptance_criteria,
+            "priority": task_context.metadata.priority,
+            "assignee": task_context.metadata.assignee,
+            "status": task_context.metadata.status.value,
+        }
+
+    async def create_task(
+        self,
+        title: str,
+        task_type: str,
+        prd_content: str,
+        acceptance_criteria: list[str],
+        priority: str = "P1",
+        assignee: str | None = None,
+        parent_task_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> str:
+        """Create a new task via TaskManager.
+
+        Args:
+            title: Task title
+            task_type: Task type (backend, frontend, fullstack)
+            prd_content: PRD content
+            acceptance_criteria: List of acceptance criteria
+            priority: Priority (P0, P1, P2, P3)
+            assignee: Optional assignee
+            parent_task_id: Optional parent task ID
+            metadata: Optional additional metadata
+
+        Returns:
+            Created task ID
+        """
+        if not self._task_manager:
+            raise RuntimeError("TaskManager not available")
+
+        return await self._task_manager.create_task(
+            title=title,
+            task_type=task_type,
+            prd_content=prd_content,
+            acceptance_criteria=acceptance_criteria,
+            priority=priority,
+            assignee=assignee,
+            created_by="orchestrator",
+            parent_task_id=parent_task_id,
+            metadata=metadata,
+        )
+
+    async def start_task(self, task_id: str, assignee: str) -> None:
+        """Start a task and set it as active.
+
+        Args:
+            task_id: Task ID to start
+            assignee: Assignee for the task
+        """
+        if not self._task_manager:
+            raise RuntimeError("TaskManager not available")
+
+        # Start task via TaskManager
+        await self._task_manager.start_task(task_id, assignee)
+
+        # Set as active task in orchestrator
+        self.set_active_task(task_id)
+
+    async def complete_task(
+        self,
+        task_id: str,
+        outcome: dict[str, Any] | None = None,
+    ) -> None:
+        """Complete a task and clear it from active.
+
+        Args:
+            task_id: Task ID to complete
+            outcome: Optional outcome data
+        """
+        if not self._task_manager:
+            raise RuntimeError("TaskManager not available")
+
+        # Complete task via TaskManager
+        await self._task_manager.complete_task(task_id, outcome)
+
+        # Clear active task if this was it
+        if self._state and self._state.active_task_id == task_id:
+            self.set_active_task(None)
 
     # ------------------------------------------------------------------
     # Phase 2: Route — fast path vs deliberative

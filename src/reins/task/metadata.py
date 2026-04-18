@@ -96,7 +96,7 @@ class TaskNode(WorkflowNode):
     Tasks are first-class workflow nodes, not a separate system.
     """
 
-    task_metadata: TaskMetadata
+    task_metadata: TaskMetadata = field(default=None)
     """Task-specific metadata"""
 
     def __init__(
