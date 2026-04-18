@@ -11,11 +11,13 @@
 **Is this direction stable?** YES.
 
 Trellis's task management has three core concepts:
+
 1. **Task metadata** (PRD, assignee, status, branch)
 2. **Task context** (JSONL files for agent state)
 3. **Current task pointer** (`.current-task` file)
 
 These map cleanly to Reins primitives:
+
 1. Task metadata → **WorkflowGraph nodes with extended metadata**
 2. Task context → **Event journal + snapshot state**
 3. Current task pointer → **Active run in orchestrator state**
@@ -29,6 +31,7 @@ These map cleanly to Reins primitives:
 ### 1. Task as Workflow Node
 
 **Current Reins workflow:**
+
 ```python
 @dataclass
 class WorkflowNode:
@@ -40,46 +43,47 @@ class WorkflowNode:
 ```
 
 **Extended for task management:**
+
 ```python
 @dataclass
 class TaskNode(WorkflowNode):
     """A workflow node representing a development task."""
     node_type: Literal[NodeType.TASK] = NodeType.TASK
-    
+
     # Task-specific metadata
     task_metadata: TaskMetadata
-    
+
 @dataclass
 class TaskMetadata:
     """Task management metadata."""
     # Identity
     task_id: str  # e.g., "04-17-auth-feature"
     slug: str  # e.g., "auth-feature"
-    
+
     # Assignment
     assignee: str  # "claude-agent" | "human" | "unassigned"
     priority: str  # "P0" | "P1" | "P2" | "P3"
-    
+
     # Git integration
     branch: str  # "feat/auth-feature"
     base_branch: str  # "main"
-    
+
     # Status tracking
     status: TaskStatus  # PENDING | IN_PROGRESS | BLOCKED | COMPLETED | FAILED
-    
+
     # Requirements
     prd_content: str  # Product requirements document
     acceptance_criteria: list[str]
-    
+
     # Context
     task_type: str  # "backend" | "frontend" | "fullstack"
     package: str | None  # "api" | "web" | None
-    
+
     # Timestamps
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
-    
+
     # Audit
     created_by: str
     last_modified_by: str
@@ -93,6 +97,7 @@ class TaskStatus(str, Enum):
 ```
 
 **Why this works:**
+
 - Tasks are already nodes in workflow graph
 - Node state tracker already handles status transitions
 - Dependencies already tracked in graph edges
@@ -103,11 +108,13 @@ class TaskStatus(str, Enum):
 ### 2. Task Context Storage
 
 **Trellis approach:**
+
 - JSONL files per agent (`implement.jsonl`, `check.jsonl`)
 - Stores agent conversation history
 - Loaded by hooks before agent invocation
 
 **Reins approach:**
+
 - Event journal already stores all agent interactions
 - Snapshot state already stores current task state
 - No separate JSONL files needed
@@ -117,11 +124,11 @@ class TaskStatus(str, Enum):
 ```python
 class TaskContextProjection:
     """Projects task-relevant events from journal."""
-    
+
     def __init__(self):
         self.task_states: dict[str, TaskState] = {}
         self.task_events: dict[str, list[Event]] = defaultdict(list)
-    
+
     def apply_event(self, event: Event) -> None:
         """Update projection from event."""
         if event.event_type == "task_created":
@@ -135,7 +142,7 @@ class TaskContextProjection:
             if event.payload.get("task_id"):
                 task_id = event.payload["task_id"]
                 self.task_events[task_id].append(event)
-    
+
     def get_task_context(self, task_id: str) -> TaskContext:
         """Get all context for a task."""
         return TaskContext(
@@ -157,6 +164,7 @@ class TaskContext:
 ```
 
 **Benefits:**
+
 - Single source of truth (journal)
 - No file synchronization issues
 - Automatic audit trail
@@ -167,10 +175,12 @@ class TaskContext:
 ### 3. Current Task Tracking
 
 **Trellis approach:**
+
 - `.trellis/.current-task` file with path to task directory
 - Read by hooks to inject task context
 
 **Reins approach:**
+
 - Active run in orchestrator state
 - No file needed, state is in-memory + checkpointed
 
@@ -182,10 +192,10 @@ class OrchestratorState:
     active_task_id: str | None  # NEW: track current task
     active_workflow_id: str | None
     active_node_id: str | None
-    
+
     pending_approvals: list[ApprovalRequest]
     open_decisions: list[Decision]
-    
+
     # Checkpoint data
     last_checkpoint_at: datetime
     checkpoint_seq: int
@@ -195,13 +205,13 @@ class Orchestrator:
         """Set the current task."""
         self.state.active_task_id = task_id
         self._emit_event(TaskActivatedEvent(task_id=task_id))
-    
+
     def get_active_task(self) -> TaskState | None:
         """Get current task state."""
         if not self.state.active_task_id:
             return None
         return self.task_projection.task_states.get(self.state.active_task_id)
-    
+
     def clear_active_task(self) -> None:
         """Clear current task."""
         if self.state.active_task_id:
@@ -210,6 +220,7 @@ class Orchestrator:
 ```
 
 **Benefits:**
+
 - No file I/O on hot path
 - State is checkpointed with rest of orchestrator state
 - Survives process restart via checkpoint
@@ -286,7 +297,7 @@ class TaskPRDUpdatedEvent:
 ```python
 class TaskManager:
     """Manages task lifecycle and state."""
-    
+
     def __init__(
         self,
         journal: EventJournal,
@@ -297,7 +308,7 @@ class TaskManager:
         self.workflow_builder = workflow_builder
         self.orchestrator = orchestrator
         self.projection = TaskContextProjection()
-    
+
     def create_task(
         self,
         title: str,
@@ -312,7 +323,7 @@ class TaskManager:
         date_prefix = datetime.now().strftime("%m-%d")
         slug = self._slugify(title)
         task_id = f"{date_prefix}-{slug}"
-        
+
         # Create metadata
         metadata = TaskMetadata(
             task_id=task_id,
@@ -332,7 +343,7 @@ class TaskManager:
             created_by=created_by,
             last_modified_by=created_by
         )
-        
+
         # Emit event
         event = TaskCreatedEvent(
             task_id=task_id,
@@ -341,7 +352,7 @@ class TaskManager:
             timestamp=datetime.now(UTC)
         )
         self.journal.append(event)
-        
+
         # Create workflow node
         self.workflow_builder.add_node(
             graph_id="main",
@@ -349,9 +360,9 @@ class TaskManager:
             node_type=NodeType.TASK,
             name=title
         )
-        
+
         return task_id
-    
+
     def start_task(self, task_id: str, assignee: str) -> None:
         """Start working on a task."""
         event = TaskStartedEvent(
@@ -360,10 +371,10 @@ class TaskManager:
             timestamp=datetime.now(UTC)
         )
         self.journal.append(event)
-        
+
         # Set as active task
         self.orchestrator.set_active_task(task_id)
-    
+
     def complete_task(self, task_id: str, outcome: dict[str, Any]) -> None:
         """Mark task as completed."""
         event = TaskCompletedEvent(
@@ -372,11 +383,11 @@ class TaskManager:
             timestamp=datetime.now(UTC)
         )
         self.journal.append(event)
-        
+
         # Clear active task if this was it
         if self.orchestrator.state.active_task_id == task_id:
             self.orchestrator.clear_active_task()
-    
+
     def update_prd(self, task_id: str, prd_content: str, updated_by: str) -> None:
         """Update task PRD."""
         event = TaskPRDUpdatedEvent(
@@ -386,11 +397,11 @@ class TaskManager:
             timestamp=datetime.now(UTC)
         )
         self.journal.append(event)
-    
+
     def get_task_context(self, task_id: str) -> TaskContext:
         """Get complete context for a task."""
         return self.projection.get_task_context(task_id)
-    
+
     def list_tasks(
         self,
         status: TaskStatus | None = None,
@@ -398,12 +409,12 @@ class TaskManager:
     ) -> list[TaskState]:
         """List tasks with optional filtering."""
         tasks = list(self.projection.task_states.values())
-        
+
         if status:
             tasks = [t for t in tasks if t.status == status]
         if assignee:
             tasks = [t for t in tasks if t.assignee == assignee]
-        
+
         return sorted(tasks, key=lambda t: t.created_at, reverse=True)
 ```
 
@@ -422,7 +433,7 @@ class ContextCompiler:
         token_budget: TokenBudget
     ) -> ContextAssemblyManifest:
         """Assemble seed context including task contract."""
-        
+
         # Resolve specs (standing law + task contract)
         query = SpecQuery(
             scope="workspace",
@@ -434,11 +445,11 @@ class ContextCompiler:
             visibility_tier=0
         )
         resolved = self.projection.resolve(query)
-        
+
         # Separate by type
         standing_law = [s for s in resolved if s.spec_type == "standing_law"]
         task_contract = [s for s in resolved if s.spec_type == "task_contract"]
-        
+
         # If task is active, inject PRD as task contract
         if task_state:
             task_contract.append(ResolvedSpec(
@@ -448,10 +459,10 @@ class ContextCompiler:
                 content=self._format_task_contract(task_state),
                 match_reason="active_task"
             ))
-        
+
         # Allocate tokens and assemble
         # ... (rest of seed_context logic)
-    
+
     def _format_task_contract(self, task_state: TaskState) -> str:
         """Format task state as contract for agent."""
         return f"""# Task: {task_state.task_id}
@@ -489,46 +500,46 @@ class TaskManager:
         """Create a subtask of an existing task."""
         # Create task normally
         subtask_id = self.create_task(title=title, **kwargs)
-        
+
         # Add dependency edge
         self.workflow_builder.add_edge(
             graph_id="main",
             from_node=subtask_id,
             to_node=parent_task_id
         )
-        
+
         return subtask_id
-    
+
     def get_subtasks(self, parent_task_id: str) -> list[str]:
         """Get all subtasks of a task."""
         graph = self.workflow_builder.get_graph("main")
         if not graph:
             return []
-        
+
         # Find nodes that have edge to parent
         subtasks = []
         for from_node, to_node in graph.edges:
             if to_node == parent_task_id:
                 subtasks.append(from_node)
-        
+
         return subtasks
-    
+
     def is_task_ready(self, task_id: str) -> bool:
         """Check if task is ready to start (all dependencies completed)."""
         graph = self.workflow_builder.get_graph("main")
         if not graph:
             return True
-        
+
         node = graph.nodes.get(task_id)
         if not node:
             return False
-        
+
         # Check all dependencies
         for dep_id in node.dependencies:
             dep_state = self.projection.task_states.get(dep_id)
             if not dep_state or dep_state.status != TaskStatus.COMPLETED:
                 return False
-        
+
         return True
 ```
 
@@ -537,6 +548,7 @@ class TaskManager:
 ## C. Migration from Trellis
 
 **Current trellis structure:**
+
 ```
 .trellis/tasks/
 ├── 04-17-auth-feature/
@@ -550,6 +562,7 @@ class TaskManager:
 ```
 
 **Reins structure:**
+
 ```
 Event Journal (in-memory + persisted)
 ├── TaskCreatedEvent(task_id="04-17-auth-feature", metadata=...)
@@ -569,19 +582,20 @@ TaskContextProjection (in-memory)
 **Migration steps:**
 
 1. **Import existing tasks:**
+
 ```python
 def import_trellis_tasks(trellis_tasks_dir: Path) -> None:
     """Import tasks from .trellis/tasks/ into Reins."""
     for task_dir in trellis_tasks_dir.iterdir():
         if not task_dir.is_dir():
             continue
-        
+
         # Read task.json
         task_json = json.loads((task_dir / "task.json").read_text())
-        
+
         # Read prd.md
         prd_content = (task_dir / "prd.md").read_text() if (task_dir / "prd.md").exists() else ""
-        
+
         # Create task in Reins
         task_manager.create_task(
             title=task_json["title"],
@@ -595,11 +609,13 @@ def import_trellis_tasks(trellis_tasks_dir: Path) -> None:
 ```
 
 2. **Parallel operation:**
+
 - Keep `.trellis/tasks/` for reference
 - New tasks created in Reins
 - Gradually migrate workflows
 
 3. **Deprecate trellis:**
+
 - Once all active tasks in Reins
 - Archive `.trellis/tasks/`
 - Remove trellis scripts
@@ -662,12 +678,14 @@ def import_trellis_tasks(trellis_tasks_dir: Path) -> None:
 ### Phase 1: Events and Projection (Week 1)
 
 **Components:**
+
 1. Task event types
 2. TaskMetadata dataclass
 3. TaskContextProjection
 4. Basic TaskManager (create, start, complete)
 
 **Deliverables:**
+
 - Can create tasks via TaskManager
 - Events written to journal
 - Projection tracks task states
@@ -678,11 +696,13 @@ def import_trellis_tasks(trellis_tasks_dir: Path) -> None:
 ### Phase 2: Integration with Orchestrator (Week 2)
 
 **Components:**
+
 1. Add active_task_id to OrchestratorState
 2. set_active_task / get_active_task / clear_active_task
 3. Checkpoint/hydrate support
 
 **Deliverables:**
+
 - Orchestrator tracks active task
 - Active task survives checkpoint/hydrate
 - Tests: active task tracking, checkpoint/hydrate
@@ -692,11 +712,13 @@ def import_trellis_tasks(trellis_tasks_dir: Path) -> None:
 ### Phase 3: Context Integration (Week 3)
 
 **Components:**
+
 1. TaskContext dataclass
 2. get_task_context() in TaskManager
 3. Integration with ContextCompiler.seed_context()
 
 **Deliverables:**
+
 - Task PRD injected as task contract
 - Agent sees task requirements in context
 - Tests: context assembly with task
@@ -706,12 +728,14 @@ def import_trellis_tasks(trellis_tasks_dir: Path) -> None:
 ### Phase 4: Dependencies and Subtasks (Week 4)
 
 **Components:**
+
 1. create_subtask()
 2. get_subtasks()
 3. is_task_ready()
 4. Task blocking/unblocking
 
 **Deliverables:**
+
 - Can create task hierarchies
 - Dependencies tracked in workflow graph
 - Blocked tasks cannot start
@@ -732,6 +756,7 @@ def import_trellis_tasks(trellis_tasks_dir: Path) -> None:
 7. All operations are auditable via events
 
 **V1 does NOT need:**
+
 - Trellis migration (defer to v2)
 - Git branch integration (defer to v2)
 - Task archival (defer to v2)

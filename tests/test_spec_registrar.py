@@ -35,7 +35,8 @@ async def test_import_valid_spec(temp_spec_dir, temp_journal):
 
     # Create a valid spec file
     spec_file = temp_spec_dir / "test.yaml"
-    spec_file.write_text("""
+    spec_file.write_text(
+        """
 spec_type: standing_law
 scope: workspace
 precedence: 100
@@ -50,7 +51,8 @@ applicability:
 content: |
   # Test Spec
   This is test content.
-""")
+"""
+    )
 
     spec_ids = await registrar.import_from_directory(temp_spec_dir)
 
@@ -78,18 +80,22 @@ async def test_import_nested_specs(temp_spec_dir, temp_journal):
     backend_dir.mkdir()
 
     spec1 = backend_dir / "error-handling.yaml"
-    spec1.write_text("""
+    spec1.write_text(
+        """
 content: |
   # Error Handling
   Test content.
-""")
+"""
+    )
 
     spec2 = backend_dir / "logging.yaml"
-    spec2.write_text("""
+    spec2.write_text(
+        """
 content: |
   # Logging
   Test content.
-""")
+"""
+    )
 
     spec_ids = await registrar.import_from_directory(temp_spec_dir)
 
@@ -104,10 +110,12 @@ async def test_import_missing_content_field(temp_spec_dir, temp_journal):
     registrar = SpecRegistrar(temp_journal, "test-run")
 
     spec_file = temp_spec_dir / "invalid.yaml"
-    spec_file.write_text("""
+    spec_file.write_text(
+        """
 spec_type: standing_law
 scope: workspace
-""")
+"""
+    )
 
     with pytest.raises(SpecValidationError, match="Missing required field 'content'"):
         await registrar.import_from_directory(temp_spec_dir)
@@ -119,11 +127,13 @@ async def test_import_invalid_spec_type(temp_spec_dir, temp_journal):
     registrar = SpecRegistrar(temp_journal, "test-run")
 
     spec_file = temp_spec_dir / "invalid.yaml"
-    spec_file.write_text("""
+    spec_file.write_text(
+        """
 spec_type: invalid_type
 content: |
   Test content
-""")
+"""
+    )
 
     with pytest.raises(SpecValidationError, match="Invalid spec_type"):
         await registrar.import_from_directory(temp_spec_dir)
@@ -135,11 +145,13 @@ async def test_import_invalid_visibility_tier(temp_spec_dir, temp_journal):
     registrar = SpecRegistrar(temp_journal, "test-run")
 
     spec_file = temp_spec_dir / "invalid.yaml"
-    spec_file.write_text("""
+    spec_file.write_text(
+        """
 visibility_tier: 5
 content: |
   Test content
-""")
+"""
+    )
 
     with pytest.raises(SpecValidationError, match="Invalid visibility_tier"):
         await registrar.import_from_directory(temp_spec_dir)
@@ -151,10 +163,12 @@ async def test_import_untrusted_source(temp_spec_dir, temp_journal):
     registrar = SpecRegistrar(temp_journal, "test-run")
 
     spec_file = temp_spec_dir / "test.yaml"
-    spec_file.write_text("""
+    spec_file.write_text(
+        """
 content: |
   Test content
-""")
+"""
+    )
 
     with pytest.raises(SpecValidationError, match="Untrusted source"):
         await registrar.import_from_directory(temp_spec_dir, registered_by="user:123")
@@ -201,10 +215,12 @@ async def test_import_with_defaults(temp_spec_dir, temp_journal):
 
     # Minimal spec with only required field
     spec_file = temp_spec_dir / "minimal.yaml"
-    spec_file.write_text("""
+    spec_file.write_text(
+        """
 content: |
   Minimal spec content
-""")
+"""
+    )
 
     spec_ids = await registrar.import_from_directory(temp_spec_dir)
 
@@ -230,10 +246,12 @@ async def test_token_count_estimation(temp_spec_dir, temp_journal):
     # Create spec with known content length
     content = "x" * 400  # 400 chars = ~100 tokens
     spec_file = temp_spec_dir / "test.yaml"
-    spec_file.write_text(f"""
+    spec_file.write_text(
+        f"""
 content: |
   {content}
-""")
+"""
+    )
 
     await registrar.import_from_directory(temp_spec_dir)
 

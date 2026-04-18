@@ -15,6 +15,9 @@ from typing import Any
 import ulid
 
 from reins.context.compiler import ContextCompiler
+from reins.context.compiler_v2 import ContextCompilerV2
+from reins.context.spec_projection import ContextSpecProjection
+from reins.context.token_budget import TokenBudget
 from reins.execution.adapter import Observation
 from reins.execution.dispatcher import ExecutionDispatcher
 from reins.evaluation.classifier import FailureClassifier
@@ -65,6 +68,9 @@ class RunOrchestrator:
         approval_ledger: ApprovalLedger | None = None,
         dispatcher: ExecutionDispatcher | None = None,
         evaluation_runner: EvaluationRunner | None = None,
+        # Reins v2.0: New components
+        context_compiler_v2: ContextCompilerV2 | None = None,
+        spec_projection: ContextSpecProjection | None = None,
     ) -> None:
         self._builder = EventBuilder(journal)
         self._journal = journal
@@ -79,6 +85,10 @@ class RunOrchestrator:
         self._dehydrator = DehydrationMachine()
         self._state: RunState | None = None
         self._intent: IntentEnvelope | None = None
+
+        # Reins v2.0: Context injection components
+        self._context_v2 = context_compiler_v2
+        self._spec_projection = spec_projection
 
     @property
     def state(self) -> RunState | None:
@@ -97,6 +107,76 @@ class RunOrchestrator:
         )
         self.apply_event(event)
         return self._state
+
+    # ------------------------------------------------------------------
+    # Reins v2.0: Session Bootstrap — load seed context
+    # ------------------------------------------------------------------
+    def bootstrap_session(
+        self,
+        token_budget: TokenBudget | None = None,
+        task_state: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """Bootstrap session with seed context from specs.
+
+        This is called after intake to load the initial context manifest.
+        The manifest includes:
+        - Standing law: Always-on project conventions
+        - Task contract: Task requirements (if task active)
+        - Spec shards: Empty at seed time (added per-turn)
+
+        Args:
+            token_budget: Token budget for context (uses default if None)
+            task_state: Current task state (if any)
+
+        Returns:
+            Context manifest as dict (or None if v2 compiler not available)
+        """
+        if not self._context_v2 or not self._spec_projection:
+            # V2 components not available, skip context injection
+            return None
+
+        assert self._state is not None
+
+        # Get granted capabilities from policy engine
+        granted_capabilities = set()
+        for grant_ref in self._state.active_grants:
+            granted_capabilities.add(grant_ref.capability)
+
+        # Compile seed context
+        manifest = self._context_v2.seed_context(
+            task_state=task_state,
+            granted_capabilities=granted_capabilities,
+            token_budget=token_budget,
+            scope="workspace",
+        )
+
+        # Convert to dict for storage in state
+        from reins.serde import to_primitive
+
+        manifest_dict = to_primitive(manifest)
+
+        # Store in state
+        self._state.seed_context_manifest = manifest_dict
+        self._state.current_context_manifest = manifest_dict
+
+        return manifest_dict
+
+    def set_active_task(self, task_id: str | None) -> None:
+        """Set the active task ID in orchestrator state.
+
+        Args:
+            task_id: Task ID to set as active (or None to clear)
+        """
+        if self._state:
+            self._state.active_task_id = task_id
+
+    def get_active_task(self) -> str | None:
+        """Get the currently active task ID.
+
+        Returns:
+            Active task ID or None
+        """
+        return self._state.active_task_id if self._state else None
 
     # ------------------------------------------------------------------
     # Phase 2: Route — fast path vs deliberative

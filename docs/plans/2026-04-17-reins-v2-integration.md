@@ -66,18 +66,21 @@ This document describes how Reins v2.0 absorbs three powerful patterns from trel
 **Purpose:** Automatically inject project conventions into agent sessions
 
 **Components:**
+
 - `SpecRegistrar` - Import specs from `.reins/spec/`, emit events
 - `ContextSpecProjection` - Build queryable index from spec events
 - `ContextCompiler` - Assemble context with token budget
 - `ContextRecompositionManager` - Handle context updates on triggers
 
 **Integration points:**
+
 - **Orchestrator.bootstrap_session()** - Loads seed context at session start
 - **TaskManager** - Provides active task for task contract injection
 - **PolicyEngine** - Filters specs by granted capabilities
 - **SubagentManager** - Inherits context to subagents
 
 **Data flow:**
+
 ```
 .reins/spec/*.yaml
     ↓
@@ -97,6 +100,7 @@ Orchestrator → Agent session
 ```
 
 **Key features:**
+
 - Event-sourced specs (immutable, auditable)
 - Projection-based resolution (fast queries)
 - Token-aware compilation (budget management)
@@ -109,18 +113,21 @@ Orchestrator → Agent session
 **Purpose:** Track requirements, state, and progress across sessions
 
 **Components:**
+
 - `TaskMetadata` - Task identity, assignment, requirements
 - `TaskContextProjection` - Project task events from journal
 - `TaskManager` - Create, start, complete tasks
 - `TaskContext` - Complete context for a task (PRD, events, decisions)
 
 **Integration points:**
+
 - **WorkflowGraph** - Tasks are workflow nodes with extended metadata
 - **NodeStateTracker** - Tracks task status transitions
 - **ContextCompiler** - Injects task PRD as task contract
 - **Orchestrator** - Tracks active task in state
 
 **Data flow:**
+
 ```
 TaskManager.create_task(title, prd, ...)
     ↓
@@ -140,6 +147,7 @@ Agent sees requirements in context
 ```
 
 **Key features:**
+
 - Tasks as workflow nodes (no parallel state system)
 - Event-sourced task lifecycle (auditable)
 - Task context from journal projection (single source of truth)
@@ -152,17 +160,20 @@ Agent sees requirements in context
 **Purpose:** Enable multiple agents to work independently without git conflicts
 
 **Components:**
+
 - `WorktreeConfig` - Configuration for worktree creation
 - `WorktreeState` - Runtime state of a worktree
 - `WorktreeManager` - Create, remove, merge worktrees
 - `IsolationLevel` - Enum for subagent isolation (NONE, PROCESS, WORKTREE)
 
 **Integration points:**
+
 - **SubagentManager** - Spawns subagents with worktree isolation
 - **TaskManager** - Provides task metadata for worktree naming
 - **EventJournal** - Records worktree lifecycle events
 
 **Data flow:**
+
 ```
 SubagentManager.spawn_subagent(config)
     ↓
@@ -189,6 +200,7 @@ WorktreeManager.remove_worktree(worktree_id)
 ```
 
 **Key features:**
+
 - Worktree as isolation level (not separate system)
 - Event-sourced worktree lifecycle (auditable)
 - Automatic cleanup (idle detection)
@@ -229,14 +241,14 @@ orchestrator.bootstrap_session()
     ↓
     # Load active task
     task_state = task_manager.get_active_task()
-    
+
     # Assemble context
     manifest = context_compiler.seed_context(
         task_state=task_state,
         granted_capabilities={"fs:read", "fs:write"},
         token_budget=TokenBudget.default(10000)
     )
-    
+
     # Manifest includes:
     # - Standing law: backend error handling, logging conventions
     # - Task contract: JWT authentication requirements
@@ -326,7 +338,7 @@ orchestrator.transition_phase("implement" -> "check")
         granted_capabilities={"fs:read"},
         token_budget=TokenBudget.default(10000)
     )
-    
+
     # New manifest includes:
     # - Standing law: (unchanged)
     # - Task contract: (unchanged)
@@ -353,6 +365,7 @@ check_agent.execute(manifest)
 **Goal:** Implement core components without breaking existing trellis workflow
 
 **Tasks:**
+
 1. Implement SpecRegistrar and events
 2. Implement ContextSpecProjection
 3. Implement ContextCompiler
@@ -360,6 +373,7 @@ check_agent.execute(manifest)
 5. Implement WorktreeManager
 
 **Deliverables:**
+
 - Can import specs from `.reins/spec/`
 - Can create tasks via TaskManager
 - Can create worktrees via WorktreeManager
@@ -374,12 +388,14 @@ check_agent.execute(manifest)
 **Goal:** Integrate components with orchestrator
 
 **Tasks:**
+
 1. Add context injection to bootstrap_session()
 2. Add active task tracking to orchestrator state
 3. Add worktree isolation to SubagentManager
 4. Implement checkpoint/hydrate for new state
 
 **Deliverables:**
+
 - Session bootstrap loads seed context
 - Active task tracked in orchestrator
 - Subagents can spawn in worktrees
@@ -394,12 +410,14 @@ check_agent.execute(manifest)
 **Goal:** Migrate existing workflows to Reins native
 
 **Tasks:**
+
 1. Import trellis specs to `.reins/spec/`
 2. Import trellis tasks to Reins TaskManager
 3. Update workflows to use Reins APIs
 4. Test parallel operation
 
 **Deliverables:**
+
 - All specs in Reins
 - All active tasks in Reins
 - Workflows use both systems
@@ -414,12 +432,14 @@ check_agent.execute(manifest)
 **Goal:** Remove trellis dependencies
 
 **Tasks:**
+
 1. Remove trellis hooks
 2. Archive `.trellis/` directory
 3. Update documentation
 4. Remove trellis scripts
 
 **Deliverables:**
+
 - Trellis completely removed
 - Documentation updated
 - Clean codebase
@@ -433,15 +453,18 @@ check_agent.execute(manifest)
 ### Context Injection
 
 **Hot paths:**
+
 - `resolve()` queries in-memory indexes: O(1) per index
 - Token allocation: O(n) where n = matching specs (typically <20)
 - Manifest assembly: O(n) serialization
 
 **Cold paths:**
+
 - Projection rebuild from journal: O(events) on startup
 - Spec registration: O(1) event append
 
 **Optimizations:**
+
 - Cache manifests per (run_phase, actor_type, path)
 - Lazy load spec content (store only metadata in projection)
 - Compress spec content in journal
@@ -451,15 +474,18 @@ check_agent.execute(manifest)
 ### Task Management
 
 **Hot paths:**
+
 - Get active task: O(1) orchestrator state access
 - List tasks: O(n) where n = total tasks
 - Get task context: O(1) projection dict access
 
 **Cold paths:**
+
 - Create task: O(1) event append + O(1) workflow node creation
 - Projection rebuild: O(events) on startup
 
 **Optimizations:**
+
 - Add indexes (by_status, by_assignee, by_priority)
 - Paginate task lists
 - Cache task contexts
@@ -469,15 +495,18 @@ check_agent.execute(manifest)
 ### Worktree Parallelism
 
 **Hot paths:**
+
 - Spawn subagent (no worktree): O(1) process spawn
 - Check subagent status: O(1) dict lookup
 
 **Cold paths:**
+
 - Create worktree: O(repo_size) git operation + file copy
 - Remove worktree: O(1) git operation
 - Merge worktree: O(commits) git operation
 
 **Optimizations:**
+
 - Limit max concurrent worktrees (e.g., 10)
 - Reuse worktrees for same task
 - Use shallow clones (future)
@@ -490,18 +519,21 @@ check_agent.execute(manifest)
 ### Unit Tests
 
 **Context Injection:**
+
 - SpecRegistrar validation
 - ContextSpecProjection event handling
 - ContextCompiler token allocation
 - Precedence sorting
 
 **Task Management:**
+
 - TaskManager lifecycle
 - TaskContextProjection event handling
 - Task dependencies
 - Subtask creation
 
 **Worktree Parallelism:**
+
 - WorktreeManager create/remove
 - Worktree state tracking
 - Cleanup automation
@@ -512,6 +544,7 @@ check_agent.execute(manifest)
 ### Integration Tests
 
 **End-to-end scenarios:**
+
 1. Create task → bootstrap session → context injected
 2. Parallel tasks → worktrees created → agents execute → merge
 3. Phase change → context re-composition → enriched context
@@ -523,6 +556,7 @@ check_agent.execute(manifest)
 ### Performance Tests
 
 **Benchmarks:**
+
 - Context resolution: <10ms for 100 specs
 - Task list: <50ms for 1000 tasks
 - Worktree creation: <5s for typical repo
@@ -535,11 +569,13 @@ check_agent.execute(manifest)
 ### Context Injection
 
 **Threats:**
+
 - Malicious specs injected by untrusted source
 - Model output becoming canonical spec
 - Spec granting capabilities implicitly
 
 **Mitigations:**
+
 - Trust verification: only system/admin can register specs
 - Staging area: model output goes to `.reins/drafts/`
 - Clear separation: specs describe, policy grants
@@ -549,11 +585,13 @@ check_agent.execute(manifest)
 ### Task Management
 
 **Threats:**
+
 - Unauthorized task creation
 - Task PRD tampering
 - Task state manipulation
 
 **Mitigations:**
+
 - Event-sourced: all changes auditable
 - Provenance tracking: created_by, last_modified_by
 - Immutable events: cannot modify history
@@ -563,11 +601,13 @@ check_agent.execute(manifest)
 ### Worktree Parallelism
 
 **Threats:**
+
 - Worktree escape: agent accesses main repo
 - Worktree pollution: malicious files in worktree
 - Merge conflicts: corrupted merge
 
 **Mitigations:**
+
 - Sandboxed execution: agent restricted to worktree directory
 - Verification hooks: check worktree before merge
 - Manual merge review: human approves merge (v1)
@@ -604,18 +644,21 @@ check_agent.execute(manifest)
 ### V1 Success Criteria
 
 **Context Injection:**
+
 - [ ] Specs imported from `.reins/spec/`
 - [ ] Seed context assembled at session bootstrap
 - [ ] Agent sees project conventions
 - [ ] All operations auditable
 
 **Task Management:**
+
 - [ ] Tasks created with PRD
 - [ ] Active task tracked in orchestrator
 - [ ] Task PRD injected as task contract
 - [ ] All operations auditable
 
 **Worktree Parallelism:**
+
 - [ ] Worktrees created for subagents
 - [ ] Multiple agents execute in parallel
 - [ ] Worktrees cleaned up after completion
@@ -626,18 +669,21 @@ check_agent.execute(manifest)
 ### V2 Success Criteria
 
 **Context Injection:**
+
 - [ ] Per-turn enrichment working
 - [ ] Capability filtering working
 - [ ] Conflict resolution working
 - [ ] Fast/deliberative paths optimized
 
 **Task Management:**
+
 - [ ] Subtasks and dependencies working
 - [ ] Task archival working
 - [ ] Git branch integration working
 - [ ] Advanced queries working
 
 **Worktree Parallelism:**
+
 - [ ] Merge automation working
 - [ ] Worktree snapshot/restore working
 - [ ] Shallow clones working

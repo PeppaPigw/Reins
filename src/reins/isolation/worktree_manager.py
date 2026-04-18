@@ -13,7 +13,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from reins.isolation.types import IsolationLevel, MergeStrategy, WorktreeConfig, WorktreeState
+from reins.isolation.types import (
+    IsolationLevel,
+    MergeStrategy,
+    WorktreeConfig,
+    WorktreeState,
+)
 from reins.kernel.event.envelope import EventEnvelope
 from reins.kernel.event.journal import EventJournal
 from reins.kernel.event.worktree_events import (
@@ -313,9 +318,7 @@ class WorktreeManager:
 
         return orphans
 
-    async def cleanup_idle(
-        self, idle_threshold_seconds: int = 3600
-    ) -> list[str]:
+    async def cleanup_idle(self, idle_threshold_seconds: int = 3600) -> list[str]:
         """Clean up idle worktrees.
 
         Args:

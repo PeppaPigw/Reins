@@ -251,11 +251,7 @@ class TaskContextProjection:
 
     def get_subtasks(self, parent_task_id: str) -> list[TaskMetadata]:
         """Get all subtasks of a parent task."""
-        return [
-            t
-            for t in self._tasks.values()
-            if t.parent_task_id == parent_task_id
-        ]
+        return [t for t in self._tasks.values() if t.parent_task_id == parent_task_id]
 
     def clear(self) -> None:
         """Clear all projection state. Used for testing."""

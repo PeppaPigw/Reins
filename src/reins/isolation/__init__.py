@@ -1,6 +1,11 @@
 """Isolation package for worktree parallelism."""
 
-from reins.isolation.types import IsolationLevel, MergeStrategy, WorktreeConfig, WorktreeState
+from reins.isolation.types import (
+    IsolationLevel,
+    MergeStrategy,
+    WorktreeConfig,
+    WorktreeState,
+)
 from reins.isolation.worktree_manager import WorktreeError, WorktreeManager
 
 __all__ = [

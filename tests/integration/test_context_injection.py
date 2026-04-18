@@ -41,7 +41,8 @@ async def test_end_to_end_context_injection(temp_dir):
 
     # Create error handling spec
     error_spec = backend_dir / "error-handling.yaml"
-    error_spec.write_text("""
+    error_spec.write_text(
+        """
 spec_type: standing_law
 scope: workspace
 precedence: 100
@@ -59,11 +60,13 @@ content: |
   Always use structured error types.
   Never catch and ignore exceptions.
   Log errors at boundaries.
-""")
+"""
+    )
 
     # Create logging spec
     logging_spec = backend_dir / "logging.yaml"
-    logging_spec.write_text("""
+    logging_spec.write_text(
+        """
 spec_type: standing_law
 scope: workspace
 precedence: 90
@@ -81,7 +84,8 @@ content: |
   Use structured logging (JSON format).
   Include trace_id for correlation.
   Don't log sensitive data.
-""")
+"""
+    )
 
     # Step 1: Import specs via SpecRegistrar
     journal_path = temp_dir / "journal.jsonl"
@@ -161,17 +165,21 @@ async def test_token_budget_allocation(temp_dir):
     # Create a large spec that will exceed budget
     large_content = "x" * 20_000  # ~5000 tokens
     large_spec = spec_dir / "large.yaml"
-    large_spec.write_text(f"""
+    large_spec.write_text(
+        f"""
 content: |
   {large_content}
-""")
+"""
+    )
 
     # Create a small spec
     small_spec = spec_dir / "small.yaml"
-    small_spec.write_text("""
+    small_spec.write_text(
+        """
 content: |
   Small spec content.
-""")
+"""
+    )
 
     # Import and build projection
     journal = EventJournal(temp_dir / "journal.jsonl")
@@ -210,20 +218,24 @@ async def test_capability_filtering(temp_dir):
 
     # Spec requiring fs:write
     write_spec = spec_dir / "write.yaml"
-    write_spec.write_text("""
+    write_spec.write_text(
+        """
 required_capabilities:
   - fs:write
 content: |
   Write operations spec.
-""")
+"""
+    )
 
     # Spec requiring no capabilities
     read_spec = spec_dir / "read.yaml"
-    read_spec.write_text("""
+    read_spec.write_text(
+        """
 required_capabilities: []
 content: |
   Read operations spec.
-""")
+"""
+    )
 
     # Import and build projection
     journal = EventJournal(temp_dir / "journal.jsonl")
@@ -265,11 +277,13 @@ async def test_precedence_sorting(temp_dir):
     # Create specs with different precedence
     for i, precedence in enumerate([50, 200, 100]):
         spec_file = spec_dir / f"spec{i}.yaml"
-        spec_file.write_text(f"""
+        spec_file.write_text(
+            f"""
 precedence: {precedence}
 content: |
   Spec with precedence {precedence}
-""")
+"""
+        )
 
     # Import and build projection
     journal = EventJournal(temp_dir / "journal.jsonl")

@@ -123,16 +123,19 @@ Retry → Re-run enrich_context() with new path/hypothesis
 **Assessment:** LOW RISK with clear boundaries
 
 **Distinction:**
+
 - **Skills** = executable capability modules with code, tools, and approval profiles
 - **Specs** = passive documentation/guidance injected as context
 
 **Boundaries enforced:**
+
 - Specs have no execution logic, only content
 - Specs cannot grant capabilities (policy engine does that)
 - Specs cannot invoke tools or adapters
 - Skills reference specs, but specs don't reference skills
 
 **Mitigation:**
+
 - Keep spec manifest schema minimal (no `execute`, `tools`, `adapters` fields)
 - Document the distinction clearly in architecture docs
 
@@ -143,16 +146,19 @@ Retry → Re-run enrich_context() with new path/hypothesis
 **Assessment:** MEDIUM RISK, requires careful implementation
 
 **Current design:**
+
 - ContextSpecProjection filters specs by `required_capabilities`
 - This is **visibility filtering**, not authorization
 - A spec requiring `fs:write` won't be shown to an agent without that capability
 - But showing a spec does NOT grant the capability
 
 **Potential confusion:**
+
 - Developer might think "if spec is visible, capability is granted"
 - Agent might assume "I see error-handling spec, so I can write files"
 
 **Mitigation:**
+
 - Clear naming: `required_capabilities` → `visibility_requires_capabilities`
 - Documentation: "Specs describe what you CAN do if granted, not what you ARE granted"
 - Policy engine remains sole source of truth for grants
@@ -165,19 +171,23 @@ Retry → Re-run enrich_context() with new path/hypothesis
 **Assessment:** LOW RISK with projection design
 
 **Hot paths:**
+
 - `resolve()` queries in-memory indexes, no journal scan ✓
 - Token counting happens once per spec at registration ✓
 - Manifest assembly is O(n) where n = matching specs (typically <20) ✓
 
 **Cold paths:**
+
 - Projection rebuild from journal (only on startup or recovery)
 - Spec registration (infrequent, admin-only operation)
 
 **Potential issues:**
+
 - Per-turn enrichment on every node execution
 - If workflow has 100 nodes, that's 100 resolve() calls
 
 **Mitigation:**
+
 - Cache manifests per (run_phase, actor_type, path) tuple
 - Invalidate cache only on capability grant change or task switch
 - V1: No caching, measure performance first
@@ -189,12 +199,14 @@ Retry → Re-run enrich_context() with new path/hypothesis
 **Assessment:** ZERO RISK, design prevents this
 
 **Guarantees:**
+
 - Agent never sees journal events directly
 - Agent sees only ContextAssemblyManifest (compiled output)
 - Manifest content comes from projection, not journal
 - Journal is append-only audit trail, not query source
 
 **Enforcement:**
+
 - No `journal.query()` method exposed to compiler
 - Projection is the only consumer of journal events
 - Agent interface accepts only `ContextAssemblyManifest`, not events
@@ -208,20 +220,24 @@ Retry → Re-run enrich_context() with new path/hypothesis
 **Scenarios:**
 
 **Hydrate (safe):**
+
 - Checkpoint includes `ContextAssemblyManifest`
 - On hydrate, restore manifest exactly as-is
 - No re-composition, no drift
 
 **Retry (potential drift):**
+
 - Retry may change query params (new path, new hypothesis)
 - Re-composition produces different manifest
 - Agent sees different context than original attempt
 
 **Is this drift acceptable?**
+
 - YES for retry: new attempt should see updated context
 - NO for hydrate: suspended run should resume with identical context
 
 **Mitigation:**
+
 - Checkpoint stores full `ContextAssemblyManifest`, not just query params
 - Hydrate restores manifest, doesn't recompute
 - Retry explicitly recomputes with new params
@@ -234,15 +250,18 @@ Retry → Re-run enrich_context() with new path/hypothesis
 **Assessment:** LOW RISK with current design
 
 **Determinism guarantees:**
+
 - Precedence is explicit integer field in spec manifest
 - Sorting by precedence is deterministic (stable sort)
 - If two specs have same precedence, sort by spec_id (lexicographic)
 
 **Potential issues:**
+
 - Human error: two specs with same precedence and overlapping topics
 - No conflict detection in v1
 
 **Mitigation:**
+
 - V1: Return all matching specs, let agent handle conflicts
 - V2: Add conflict detection (detect overlapping topics via tags)
 - V2: Add precedence validation (warn if two specs have same precedence)
@@ -254,21 +273,25 @@ Retry → Re-run enrich_context() with new path/hypothesis
 **Assessment:** LOW RISK, design supports all
 
 **Audit:**
+
 - Every spec registration is an event in journal ✓
 - Every manifest assembly includes audit trail (resolved_spec_ids, query_params) ✓
 - Can reconstruct "what context did agent see" from manifest_id ✓
 
 **Replay:**
+
 - Projection rebuilds from journal events ✓
 - Manifest assembly is deterministic given same query params ✓
 - Can replay session and verify same specs were resolved ✓
 
 **Checkpoint:**
+
 - Checkpoint includes full `ContextAssemblyManifest` ✓
 - Manifest is serializable (dataclass with primitives) ✓
 - No references to live objects (projection, compiler) ✓
 
 **Dehydration:**
+
 - Manifest can be serialized to JSON ✓
 - On hydrate, deserialize and restore ✓
 - No re-composition needed ✓
@@ -280,17 +303,20 @@ Retry → Re-run enrich_context() with new path/hypothesis
 ### Phase 1: Foundation (Week 1)
 
 **Components:**
+
 1. Event types (`SpecRegisteredEvent`, `SpecSupersededEvent`, `SpecDeactivatedEvent`)
 2. `SpecRegistrar` (directory import only, no API)
 3. Basic projection (`ContextSpecProjection` with primary index only)
 
 **Deliverables:**
+
 - Can import specs from `.reins/spec/`
 - Events written to journal
 - Projection builds from events
 - Tests: registrar validation, event emission, projection build
 
 **Deferred:**
+
 - Secondary indexes (use linear scan in v1)
 - API registration
 - Supersede/deactivate (register new specs only)
@@ -300,16 +326,19 @@ Retry → Re-run enrich_context() with new path/hypothesis
 ### Phase 2: Resolution (Week 2)
 
 **Components:**
+
 1. `SpecQuery` dataclass
 2. `ContextSpecProjection.resolve()` (scope + lifecycle filtering only)
 3. `ResolvedSpec` dataclass
 
 **Deliverables:**
+
 - Can query specs by scope
 - Lifecycle filtering works (exclude superseded/deactivated)
 - Tests: resolve by scope, lifecycle filtering
 
 **Deferred:**
+
 - Applicability matching (task_type, run_phase, actor_type, path)
 - Capability filtering
 - Visibility filtering
@@ -319,17 +348,20 @@ Retry → Re-run enrich_context() with new path/hypothesis
 ### Phase 3: Compilation (Week 3)
 
 **Components:**
+
 1. `ContextCompiler` (seed_context only)
 2. `TokenBudget` and token allocation
 3. `ContextAssemblyManifest`
 
 **Deliverables:**
+
 - Can assemble seed context from resolved specs
 - Token budget allocation works
 - Manifest includes audit trail
 - Tests: seed context assembly, token allocation, truncation
 
 **Deferred:**
+
 - Per-turn enrichment (enrich_context)
 - Fast/deliberative path distinction
 - Folded memory
@@ -339,11 +371,13 @@ Retry → Re-run enrich_context() with new path/hypothesis
 ### Phase 4: Integration (Week 4)
 
 **Components:**
+
 1. `ContextRecompositionManager`
 2. Integration with `Orchestrator.bootstrap_session()`
 3. Checkpoint/hydrate support
 
 **Deliverables:**
+
 - Session bootstrap loads seed context
 - Context included in agent session
 - Checkpoint stores manifest
@@ -351,6 +385,7 @@ Retry → Re-run enrich_context() with new path/hypothesis
 - Tests: end-to-end session bootstrap, checkpoint/hydrate
 
 **Deferred:**
+
 - Per-turn enrichment triggers
 - Subagent context inheritance
 - Skill activation triggers
@@ -396,6 +431,7 @@ Retry → Re-run enrich_context() with new path/hypothesis
 ## H. Migration from Trellis
 
 **Current state:**
+
 - `.trellis/spec/` exists with backend/frontend/guides
 - `.trellis/workflow.md` describes trellis workflow
 - `.trellis/scripts/` has task management

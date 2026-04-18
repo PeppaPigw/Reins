@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from reins.kernel.types import FailureClass, GrantRef, HandleRef, RunStatus
 
@@ -40,6 +41,17 @@ class RunState:
     last_completed_repair: CompletedRepair | None = None
     last_checkpoint_id: str | None = None
 
+    # Reins v2.0: Context injection state
+    seed_context_manifest: dict[str, Any] | None = None
+    """Seed context manifest from bootstrap (ContextAssemblyManifest as dict)"""
+
+    current_context_manifest: dict[str, Any] | None = None
+    """Current context manifest (may be enriched from seed)"""
+
+    # Reins v2.0: Task management state
+    active_task_id: str | None = None
+    """Currently active task ID"""
+
 
 @dataclass
 class StateSnapshot:
@@ -60,3 +72,10 @@ class StateSnapshot:
     repairing_command_id: str | None = None
     last_completed_repair: CompletedRepair | None = None
     working_set_manifest_ref: str | None = None
+
+    # Reins v2.0: Context injection state
+    seed_context_manifest: dict[str, Any] | None = None
+    current_context_manifest: dict[str, Any] | None = None
+
+    # Reins v2.0: Task management state
+    active_task_id: str | None = None
