@@ -142,7 +142,7 @@ class SpecRegistrar:
             # Emit to journal
             envelope = EventEnvelope(
                 run_id=self._run_id,
-                actor=Actor.SYSTEM,
+                actor=Actor.runtime,
                 type=SPEC_REGISTERED,
                 payload=self._event_to_payload(event_data),
             )

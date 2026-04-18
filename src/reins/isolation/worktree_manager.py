@@ -134,7 +134,7 @@ class WorktreeManager:
 
             event = EventEnvelope(
                 run_id=self._run_id,
-                actor=Actor.SYSTEM,
+                actor=Actor.runtime,
                 type=WORKTREE_CREATED,
                 payload=payload,
             )

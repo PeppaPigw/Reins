@@ -25,7 +25,7 @@ def test_apply_spec_registered_event():
 
     event = EventEnvelope(
         run_id="test-run",
-        actor=Actor.SYSTEM,
+        actor=Actor.runtime,
         type=SPEC_REGISTERED,
         payload={
             "spec_id": "backend.error-handling",
@@ -66,7 +66,7 @@ def test_get_spec_content():
 
     event = EventEnvelope(
         run_id="test-run",
-        actor=Actor.SYSTEM,
+        actor=Actor.runtime,
         type=SPEC_REGISTERED,
         payload={
             "spec_id": "test.spec",
@@ -99,7 +99,7 @@ def test_apply_spec_superseded_event():
     # Register original spec
     register_event = EventEnvelope(
         run_id="test-run",
-        actor=Actor.SYSTEM,
+        actor=Actor.runtime,
         type=SPEC_REGISTERED,
         payload={
             "spec_id": "old.spec",
@@ -120,7 +120,7 @@ def test_apply_spec_superseded_event():
     # Supersede it
     supersede_event = EventEnvelope(
         run_id="test-run",
-        actor=Actor.SYSTEM,
+        actor=Actor.runtime,
         type=SPEC_SUPERSEDED,
         payload={
             "spec_id": "old.spec",
@@ -147,7 +147,7 @@ def test_apply_spec_deactivated_event():
     # Register spec
     register_event = EventEnvelope(
         run_id="test-run",
-        actor=Actor.SYSTEM,
+        actor=Actor.runtime,
         type=SPEC_REGISTERED,
         payload={
             "spec_id": "obsolete.spec",
@@ -168,7 +168,7 @@ def test_apply_spec_deactivated_event():
     # Deactivate it
     deactivate_event = EventEnvelope(
         run_id="test-run",
-        actor=Actor.SYSTEM,
+        actor=Actor.runtime,
         type=SPEC_DEACTIVATED,
         payload={
             "spec_id": "obsolete.spec",
@@ -194,7 +194,7 @@ def test_list_specs_by_scope():
     # Register workspace spec
     workspace_event = EventEnvelope(
         run_id="test-run",
-        actor=Actor.SYSTEM,
+        actor=Actor.runtime,
         type=SPEC_REGISTERED,
         payload={
             "spec_id": "workspace.spec",
@@ -215,7 +215,7 @@ def test_list_specs_by_scope():
     # Register task spec
     task_event = EventEnvelope(
         run_id="test-run",
-        actor=Actor.SYSTEM,
+        actor=Actor.runtime,
         type=SPEC_REGISTERED,
         payload={
             "spec_id": "task.spec",
@@ -255,7 +255,7 @@ def test_list_specs_excludes_superseded_by_default():
     # Register and supersede a spec
     register_event = EventEnvelope(
         run_id="test-run",
-        actor=Actor.SYSTEM,
+        actor=Actor.runtime,
         type=SPEC_REGISTERED,
         payload={
             "spec_id": "old.spec",
@@ -275,7 +275,7 @@ def test_list_specs_excludes_superseded_by_default():
 
     supersede_event = EventEnvelope(
         run_id="test-run",
-        actor=Actor.SYSTEM,
+        actor=Actor.runtime,
         type=SPEC_SUPERSEDED,
         payload={"spec_id": "old.spec", "superseded_by": "new.spec"},
     )
@@ -297,7 +297,7 @@ def test_list_specs_excludes_deactivated_by_default():
     # Register and deactivate a spec
     register_event = EventEnvelope(
         run_id="test-run",
-        actor=Actor.SYSTEM,
+        actor=Actor.runtime,
         type=SPEC_REGISTERED,
         payload={
             "spec_id": "obsolete.spec",
@@ -317,7 +317,7 @@ def test_list_specs_excludes_deactivated_by_default():
 
     deactivate_event = EventEnvelope(
         run_id="test-run",
-        actor=Actor.SYSTEM,
+        actor=Actor.runtime,
         type=SPEC_DEACTIVATED,
         payload={"spec_id": "obsolete.spec", "deactivated_by": "system"},
     )

@@ -109,7 +109,7 @@ class TaskManager:
         # Emit event
         event = EventEnvelope(
             run_id=self._run_id,
-            actor=Actor.SYSTEM,
+            actor=Actor.runtime,
             type=TASK_CREATED,
             payload=payload,
         )
