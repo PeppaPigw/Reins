@@ -23,6 +23,8 @@ from typing import Any
 import ulid
 
 from reins.context.compiler import ContextCompiler
+from reins.isolation.types import IsolationLevel, WorktreeConfig
+from reins.isolation.worktree_manager import WorktreeManager
 from reins.kernel.event.builder import EventBuilder
 from reins.kernel.event.journal import EventJournal
 from reins.kernel.intent.envelope import IntentEnvelope
@@ -55,6 +57,9 @@ class SubagentSpec:
     timeout_seconds: int = 300
     success_criteria: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
+    isolation_level: IsolationLevel = IsolationLevel.NONE
+    worktree_config: WorktreeConfig | None = None
+    task_id: str | None = None
 
 
 @dataclass
@@ -70,6 +75,8 @@ class SubagentHandle:
     max_turns: int = 20
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     result: dict[str, Any] | None = None
+    worktree_id: str | None = None
+    isolation_level: IsolationLevel = IsolationLevel.NONE
 
 
 class SubagentManager:
@@ -88,11 +95,13 @@ class SubagentManager:
         snapshot_store: SnapshotStore,
         checkpoint_store: CheckpointStore,
         policy_engine: PolicyEngine,
+        worktree_manager: WorktreeManager | None = None,
     ) -> None:
         self._journal = journal
         self._snapshot_store = snapshot_store
         self._checkpoint_store = checkpoint_store
         self._policy = policy_engine
+        self._worktree_manager = worktree_manager
         self._active: dict[str, SubagentHandle] = {}
         self._children: dict[str, RunOrchestrator] = {}
         self._completed: list[SubagentHandle] = []
@@ -102,12 +111,33 @@ class SubagentManager:
         """Spawn a new local subagent. Returns a handle for supervision."""
         await self._validate_inherited_grants(spec)
         child_run_id = str(ulid.new())
+
+        # Create worktree if isolation level requires it
+        worktree_id = None
+        worktree_path = None
+        if spec.isolation_level == IsolationLevel.WORKTREE:
+            if self._worktree_manager is None:
+                raise ValueError("WorktreeManager required for worktree isolation")
+            if spec.worktree_config is None:
+                raise ValueError("worktree_config required when isolation_level=WORKTREE")
+
+            # Create worktree
+            worktree_state = await self._worktree_manager.create_worktree(
+                agent_id=child_run_id,
+                task_id=spec.task_id,
+                config=spec.worktree_config,
+            )
+            worktree_id = worktree_state.worktree_id
+            worktree_path = str(worktree_state.worktree_path)
+
         handle = SubagentHandle(
             handle_id=str(ulid.new()),
             parent_run_id=spec.parent_run_id,
             child_run_id=child_run_id,
             objective=spec.objective,
             max_turns=spec.max_turns,
+            worktree_id=worktree_id,
+            isolation_level=spec.isolation_level,
         )
         self._active[handle.handle_id] = handle
 
@@ -121,6 +151,9 @@ class SubagentManager:
                 "max_turns": spec.max_turns,
                 "token_budget": spec.token_budget,
                 "inherited_grants": [g.grant_id for g in spec.inherited_grants],
+                "isolation_level": spec.isolation_level.value,
+                "worktree_id": worktree_id,
+                "worktree_path": worktree_path,
             },
             correlation_id=child_run_id,
         )
@@ -183,6 +216,17 @@ class SubagentManager:
         if child_orch is not None:
             await child_orch.complete()
 
+        # Clean up worktree if it exists
+        if handle.worktree_id and self._worktree_manager:
+            worktree_state = self._worktree_manager.get_worktree(handle.worktree_id)
+            if worktree_state and worktree_state.config.cleanup_on_success:
+                await self._worktree_manager.remove_worktree(
+                    handle.worktree_id,
+                    force=False,
+                    removed_by="subagent",
+                    reason="Subagent completed successfully",
+                )
+
         await self._builder.commit(
             run_id=handle.parent_run_id,
             event_type="subagent.completed",
@@ -191,6 +235,7 @@ class SubagentManager:
                 "objective": handle.objective,
                 "turns_used": handle.turn_count,
                 "result_summary": result.get("summary", ""),
+                "worktree_id": handle.worktree_id,
             },
             correlation_id=handle.child_run_id,
         )
@@ -212,6 +257,17 @@ class SubagentManager:
         if child_orch is not None:
             await child_orch.fail(FailureClass.remote_agent_failure, reason)
 
+        # Clean up worktree if it exists
+        if handle.worktree_id and self._worktree_manager:
+            worktree_state = self._worktree_manager.get_worktree(handle.worktree_id)
+            if worktree_state and worktree_state.config.cleanup_on_failure:
+                await self._worktree_manager.remove_worktree(
+                    handle.worktree_id,
+                    force=True,  # Force removal on failure
+                    removed_by="subagent",
+                    reason=f"Subagent failed: {reason}",
+                )
+
         await self._builder.commit(
             run_id=handle.parent_run_id,
             event_type="subagent.failed",
@@ -219,6 +275,7 @@ class SubagentManager:
                 "child_run_id": handle.child_run_id,
                 "reason": reason,
                 "turns_used": handle.turn_count,
+                "worktree_id": handle.worktree_id,
             },
             correlation_id=handle.child_run_id,
         )
@@ -236,12 +293,26 @@ class SubagentManager:
         if child_orch is not None:
             await child_orch.abort(reason)
 
+        # Clean up worktree if it exists (always force on abort)
+        if handle.worktree_id and self._worktree_manager:
+            try:
+                await self._worktree_manager.remove_worktree(
+                    handle.worktree_id,
+                    force=True,
+                    removed_by="subagent",
+                    reason=f"Subagent aborted: {reason}",
+                )
+            except Exception:
+                # Ignore cleanup errors on abort
+                pass
+
         await self._builder.commit(
             run_id=handle.parent_run_id,
             event_type="subagent.aborted",
             payload={
                 "child_run_id": handle.child_run_id,
                 "reason": reason,
+                "worktree_id": handle.worktree_id,
             },
             correlation_id=handle.child_run_id,
         )

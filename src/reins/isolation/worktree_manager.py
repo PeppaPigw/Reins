@@ -191,7 +191,7 @@ class WorktreeManager:
 
             event = EventEnvelope(
                 run_id=self._run_id,
-                actor=Actor.SYSTEM,
+                actor=Actor.runtime,
                 type=WORKTREE_REMOVED,
                 payload=payload,
             )
@@ -259,7 +259,7 @@ class WorktreeManager:
 
             event = EventEnvelope(
                 run_id=self._run_id,
-                actor=Actor.SYSTEM,
+                actor=Actor.runtime,
                 type=WORKTREE_MERGED,
                 payload=payload,
             )
