@@ -1,4 +1,5 @@
 """Tests for the MCP adapter and extended capabilities taxonomy."""
+
 from __future__ import annotations
 
 import pytest
@@ -59,10 +60,17 @@ class TestDispatcherMcpSupport:
     def test_resolve_mcp_tool_invoke(self):
         d = ExecutionDispatcher()
         from reins.kernel.intent.envelope import CommandEnvelope
+
         cmd = CommandEnvelope(
             run_id="r1",
             normalized_kind="mcp.tool.invoke",
-            args={"server_id": "s1", "name": "s1", "endpoint": "", "tool_name": "search", "args": {}},
+            args={
+                "server_id": "s1",
+                "name": "s1",
+                "endpoint": "",
+                "tool_name": "search",
+                "args": {},
+            },
         )
         adapter_kind, open_spec, adapter_cmd = d._resolve(cmd)
         assert adapter_kind == "mcp"
@@ -73,6 +81,7 @@ class TestDispatcherMcpSupport:
     def test_resolve_mcp_resource_read(self):
         d = ExecutionDispatcher()
         from reins.kernel.intent.envelope import CommandEnvelope
+
         cmd = CommandEnvelope(
             run_id="r1",
             normalized_kind="mcp.resource.read",
@@ -85,6 +94,7 @@ class TestDispatcherMcpSupport:
     def test_resolve_mcp_prompt_get(self):
         d = ExecutionDispatcher()
         from reins.kernel.intent.envelope import CommandEnvelope
+
         cmd = CommandEnvelope(
             run_id="r1",
             normalized_kind="mcp.prompt.get",
@@ -112,13 +122,15 @@ class TestMcpAdapter:
         with patch("reins.execution.mcp.session.create_transport") as mock_create:
             mock_create.return_value = mock_transport
 
-            handle = await adapter.open({
-                "server_id": "test_server",
-                "name": "Test Server",
-                "endpoint": "http://localhost:8080/rpc",
-                "tools": [{"name": "search", "input_schema": {}}],
-                "resources": [],
-            })
+            handle = await adapter.open(
+                {
+                    "server_id": "test_server",
+                    "name": "Test Server",
+                    "endpoint": "http://localhost:8080/rpc",
+                    "tools": [{"name": "search", "input_schema": {}}],
+                    "resources": [],
+                }
+            )
             assert handle.adapter_kind == "mcp"
             assert handle.metadata["server_id"] == "test_server"
             assert handle.metadata["tool_count"] == 1
@@ -128,18 +140,24 @@ class TestMcpAdapter:
 
         mock_transport = MagicMock()
         mock_transport.send = AsyncMock(
-            return_value=JsonRpcResponse(jsonrpc="2.0", id="1", result={"output": "pong"})
+            return_value=JsonRpcResponse(
+                jsonrpc="2.0", id="1", result={"output": "pong"}
+            )
         )
 
         with patch("reins.execution.mcp.session.create_transport") as mock_create:
             mock_create.return_value = mock_transport
 
-            handle = await adapter.open({
-                "server_id": "srv",
-                "name": "srv",
-                "endpoint": "http://localhost:8080/rpc"
-            })
-            obs = await adapter.exec(handle, {"op": "invoke_tool", "tool_name": "ping", "args": {}})
+            handle = await adapter.open(
+                {
+                    "server_id": "srv",
+                    "name": "srv",
+                    "endpoint": "http://localhost:8080/rpc",
+                }
+            )
+            obs = await adapter.exec(
+                handle, {"op": "invoke_tool", "tool_name": "ping", "args": {}}
+            )
             assert obs.exit_code == 0
             assert "call_id" in obs.stdout
 
@@ -148,17 +166,21 @@ class TestMcpAdapter:
 
         mock_transport = MagicMock()
         mock_transport.send = AsyncMock(
-            return_value=JsonRpcResponse(jsonrpc="2.0", id="1", result={"content": "data"})
+            return_value=JsonRpcResponse(
+                jsonrpc="2.0", id="1", result={"content": "data"}
+            )
         )
 
         with patch("reins.execution.mcp.session.create_transport") as mock_create:
             mock_create.return_value = mock_transport
 
-            handle = await adapter.open({
-                "server_id": "srv",
-                "name": "srv",
-                "endpoint": "http://localhost:8080/rpc"
-            })
+            handle = await adapter.open(
+                {
+                    "server_id": "srv",
+                    "name": "srv",
+                    "endpoint": "http://localhost:8080/rpc",
+                }
+            )
             obs = await adapter.exec(handle, {"op": "read_resource", "uri": "mem://x"})
             assert obs.exit_code == 0
 
@@ -167,17 +189,21 @@ class TestMcpAdapter:
 
         mock_transport = MagicMock()
         mock_transport.send = AsyncMock(
-            return_value=JsonRpcResponse(jsonrpc="2.0", id="1", result={"prompt": "text"})
+            return_value=JsonRpcResponse(
+                jsonrpc="2.0", id="1", result={"prompt": "text"}
+            )
         )
 
         with patch("reins.execution.mcp.session.create_transport") as mock_create:
             mock_create.return_value = mock_transport
 
-            handle = await adapter.open({
-                "server_id": "srv",
-                "name": "srv",
-                "endpoint": "http://localhost:8080/rpc"
-            })
+            handle = await adapter.open(
+                {
+                    "server_id": "srv",
+                    "name": "srv",
+                    "endpoint": "http://localhost:8080/rpc",
+                }
+            )
             obs = await adapter.exec(handle, {"op": "get_prompt", "name": "review"})
             assert obs.exit_code == 0
 
@@ -192,11 +218,13 @@ class TestMcpAdapter:
         with patch("reins.execution.mcp.session.create_transport") as mock_create:
             mock_create.return_value = mock_transport
 
-            handle = await adapter.open({
-                "server_id": "srv",
-                "name": "srv",
-                "endpoint": "http://localhost:8080/rpc"
-            })
+            handle = await adapter.open(
+                {
+                    "server_id": "srv",
+                    "name": "srv",
+                    "endpoint": "http://localhost:8080/rpc",
+                }
+            )
             snap = await adapter.snapshot(handle)
             assert "srv" in snap
 
@@ -211,11 +239,13 @@ class TestMcpAdapter:
         with patch("reins.execution.mcp.session.create_transport") as mock_create:
             mock_create.return_value = mock_transport
 
-            handle = await adapter.open({
-                "server_id": "srv",
-                "name": "srv",
-                "endpoint": "http://localhost:8080/rpc"
-            })
+            handle = await adapter.open(
+                {
+                    "server_id": "srv",
+                    "name": "srv",
+                    "endpoint": "http://localhost:8080/rpc",
+                }
+            )
             frozen = await adapter.freeze(handle)
             assert frozen["server_id"] == "srv"
             restored = await adapter.thaw(frozen)
@@ -234,11 +264,13 @@ class TestMcpAdapter:
         with patch("reins.execution.mcp.session.create_transport") as mock_create:
             mock_create.return_value = mock_transport
 
-            handle = await adapter.open({
-                "server_id": "srv2",
-                "name": "srv2",
-                "endpoint": "http://localhost:8080/rpc"
-            })
+            handle = await adapter.open(
+                {
+                    "server_id": "srv2",
+                    "name": "srv2",
+                    "endpoint": "http://localhost:8080/rpc",
+                }
+            )
             await adapter.close(handle)
             session = adapter.session_manager.get_session("srv2")
         assert session is None or not session.active

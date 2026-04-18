@@ -285,8 +285,13 @@ async def test_mcp_with_orchestrator_integration(tmp_path):
     approval_ledger = ApprovalLedger(tmp_path / "approvals")
 
     orch = RunOrchestrator(
-        journal, snapshots, checkpoints, policy, context,
-        approval_ledger=approval_ledger, dispatcher=dispatcher
+        journal,
+        snapshots,
+        checkpoints,
+        policy,
+        context,
+        approval_ledger=approval_ledger,
+        dispatcher=dispatcher,
     )
 
     # Start a run

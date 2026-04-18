@@ -8,7 +8,11 @@ from reins.kernel.event.journal import EventJournal
 from reins.kernel.reducer.state import RunState, StateSnapshot
 from reins.kernel.snapshot.store import SnapshotStore
 from reins.kernel.types import GrantRef, RunStatus
-from reins.memory.checkpoint import CheckpointManifest, CheckpointStore, DehydrationMachine
+from reins.memory.checkpoint import (
+    CheckpointManifest,
+    CheckpointStore,
+    DehydrationMachine,
+)
 
 
 @pytest.mark.asyncio

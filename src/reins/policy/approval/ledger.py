@@ -26,8 +26,12 @@ class EffectDescriptor:
     intent_ref: str
     command_id: str
     preview_ref: str | None = None
-    rollback_strategy: str = "none"  # none | reverse_patch | compensating_action | transaction
-    reversibility: str = "irreversible"  # reversible | partially_reversible | irreversible
+    rollback_strategy: str = (
+        "none"  # none | reverse_patch | compensating_action | transaction
+    )
+    reversibility: str = (
+        "irreversible"  # reversible | partially_reversible | irreversible
+    )
     side_effects: list[str] = field(default_factory=list)
     ttl_seconds: int = 600
 

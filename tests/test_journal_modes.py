@@ -15,8 +15,12 @@ async def test_journal_file_mode(tmp_path):
     journal = EventJournal(journal_file)
 
     # Write events for multiple runs
-    event1 = EventEnvelope(run_id="run-1", actor=Actor.runtime, type="test", payload={"data": "a"})
-    event2 = EventEnvelope(run_id="run-2", actor=Actor.runtime, type="test", payload={"data": "b"})
+    event1 = EventEnvelope(
+        run_id="run-1", actor=Actor.runtime, type="test", payload={"data": "a"}
+    )
+    event2 = EventEnvelope(
+        run_id="run-2", actor=Actor.runtime, type="test", payload={"data": "b"}
+    )
 
     await journal.append(event1)
     await journal.append(event2)
@@ -34,9 +38,15 @@ async def test_journal_directory_mode(tmp_path):
     journal = EventJournal(journal_dir)
 
     # Write events for multiple runs
-    event1 = EventEnvelope(run_id="run-1", actor=Actor.runtime, type="test", payload={"data": "a"})
-    event2 = EventEnvelope(run_id="run-2", actor=Actor.runtime, type="test", payload={"data": "b"})
-    event3 = EventEnvelope(run_id="run-1", actor=Actor.runtime, type="test", payload={"data": "c"})
+    event1 = EventEnvelope(
+        run_id="run-1", actor=Actor.runtime, type="test", payload={"data": "a"}
+    )
+    event2 = EventEnvelope(
+        run_id="run-2", actor=Actor.runtime, type="test", payload={"data": "b"}
+    )
+    event3 = EventEnvelope(
+        run_id="run-1", actor=Actor.runtime, type="test", payload={"data": "c"}
+    )
 
     await journal.append(event1)
     await journal.append(event2)
@@ -62,9 +72,15 @@ async def test_journal_read_from_directory_mode(tmp_path):
     journal = EventJournal(journal_dir)
 
     # Write events
-    event1 = EventEnvelope(run_id="run-1", actor=Actor.runtime, type="test.1", payload={"seq": 1})
-    event2 = EventEnvelope(run_id="run-1", actor=Actor.runtime, type="test.2", payload={"seq": 2})
-    event3 = EventEnvelope(run_id="run-2", actor=Actor.runtime, type="test.3", payload={"seq": 3})
+    event1 = EventEnvelope(
+        run_id="run-1", actor=Actor.runtime, type="test.1", payload={"seq": 1}
+    )
+    event2 = EventEnvelope(
+        run_id="run-1", actor=Actor.runtime, type="test.2", payload={"seq": 2}
+    )
+    event3 = EventEnvelope(
+        run_id="run-2", actor=Actor.runtime, type="test.3", payload={"seq": 3}
+    )
 
     await journal.append(event1)
     await journal.append(event2)

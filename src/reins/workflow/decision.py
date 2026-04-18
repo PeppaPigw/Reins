@@ -56,7 +56,9 @@ class DecisionManager:
         self, question_id: str, node_id: str, question: str
     ) -> WorkflowQuestion:
         """Create a question."""
-        q = WorkflowQuestion(question_id=question_id, node_id=node_id, question=question)
+        q = WorkflowQuestion(
+            question_id=question_id, node_id=node_id, question=question
+        )
         self.questions[question_id] = q
         return q
 

@@ -206,10 +206,12 @@ async def test_refresh_capabilities_success():
             return JsonRpcResponse(
                 jsonrpc="2.0",
                 id=request.id,
-                result={"tools": [
-                    {"name": "tool1", "input_schema": {}},
-                    {"name": "tool2", "input_schema": {}},
-                ]},
+                result={
+                    "tools": [
+                        {"name": "tool1", "input_schema": {}},
+                        {"name": "tool2", "input_schema": {}},
+                    ]
+                },
             )
 
     mock_transport.send = AsyncMock(side_effect=mock_send)

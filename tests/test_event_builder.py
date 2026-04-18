@@ -47,7 +47,12 @@ async def test_grant_lifecycle(tmp_path):
     builder = EventBuilder(journal)
 
     await builder.emit_grant_issued(
-        "run-3", "g1", "fs.read", "workspace", "model", 600,
+        "run-3",
+        "g1",
+        "fs.read",
+        "workspace",
+        "model",
+        600,
     )
     await builder.emit_grant_revoked("run-3", "g1")
 
@@ -65,7 +70,8 @@ async def test_causation_and_trace_ids(tmp_path):
     builder = EventBuilder(journal)
 
     event = await builder.commit(
-        run_id="run-4", event_type="test.event",
+        run_id="run-4",
+        event_type="test.event",
         payload={"x": 1},
         causation_id="cause-1",
         correlation_id="corr-1",

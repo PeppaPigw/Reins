@@ -12,6 +12,7 @@ Command ops:
   { "op": "read_resource", "uri": str }
   { "op": "get_prompt", "name": str, "args": dict }
 """
+
 from __future__ import annotations
 
 import json
@@ -82,7 +83,11 @@ class McpAdapter(Adapter):
                 stdout=json.dumps({"uri": uri, "status": "not_connected"}),
                 stderr="",
                 exit_code=0,
-                effect_descriptor={"op": "read_resource", "server_id": server_id, "uri": uri},
+                effect_descriptor={
+                    "op": "read_resource",
+                    "server_id": server_id,
+                    "uri": uri,
+                },
             )
 
         if op == "get_prompt":
@@ -91,7 +96,11 @@ class McpAdapter(Adapter):
                 stdout=json.dumps({"name": name, "status": "not_connected"}),
                 stderr="",
                 exit_code=0,
-                effect_descriptor={"op": "get_prompt", "server_id": server_id, "name": name},
+                effect_descriptor={
+                    "op": "get_prompt",
+                    "server_id": server_id,
+                    "name": name,
+                },
             )
 
         return Observation(
@@ -105,13 +114,15 @@ class McpAdapter(Adapter):
         server_id = handle.metadata["server_id"]
         session = self._manager.get_session(server_id)
         if session is None:
-            return f"{{\"server_id\": \"{server_id}\", \"active\": false}}"
-        return json.dumps({
-            "server_id": server_id,
-            "session_id": session.session_id,
-            "active": session.active,
-            "tool_count": len(session.tools),
-        })
+            return f'{{"server_id": "{server_id}", "active": false}}'
+        return json.dumps(
+            {
+                "server_id": server_id,
+                "session_id": session.session_id,
+                "active": session.active,
+                "tool_count": len(session.tools),
+            }
+        )
 
     async def freeze(self, handle: Handle) -> dict:
         return {

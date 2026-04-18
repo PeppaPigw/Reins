@@ -52,7 +52,11 @@ class CheckpointStore:
 
 class DehydrationMachine:
     def can_dehydrate(self, state: RunState) -> bool:
-        return state.status not in {RunStatus.completed, RunStatus.aborted, RunStatus.failed}
+        return state.status not in {
+            RunStatus.completed,
+            RunStatus.aborted,
+            RunStatus.failed,
+        }
 
     async def dehydrate(
         self,
@@ -86,7 +90,9 @@ class DehydrationMachine:
         manifest: CheckpointManifest,
         snapshot: StateSnapshot | None = None,
     ) -> RunState:
-        pending_approvals = list(snapshot.pending_approvals) if snapshot is not None else []
+        pending_approvals = (
+            list(snapshot.pending_approvals) if snapshot is not None else []
+        )
         for wake_condition in manifest.wake_conditions:
             if not wake_condition.startswith("approval:"):
                 continue
@@ -102,10 +108,13 @@ class DehydrationMachine:
             run_id=manifest.run_id,
             status=RunStatus.resumable,
             current_node_id=snapshot.current_node_id if snapshot is not None else None,
-            snapshot_id=snapshot.snapshot_id if snapshot is not None else manifest.snapshot_id,
+            snapshot_id=(
+                snapshot.snapshot_id if snapshot is not None else manifest.snapshot_id
+            ),
             working_set_manifest_ref=(
                 snapshot.working_set_manifest_ref
-                if snapshot is not None and snapshot.working_set_manifest_ref is not None
+                if snapshot is not None
+                and snapshot.working_set_manifest_ref is not None
                 else manifest.resume_plan_ref
             ),
             open_handles=[
@@ -119,10 +128,16 @@ class DehydrationMachine:
             ],
             active_grants=valid_grants,
             pending_approvals=pending_approvals,
-            open_questions=list(snapshot.open_questions) if snapshot is not None else [],
-            last_failure_class=snapshot.last_failure_class if snapshot is not None else None,
+            open_questions=(
+                list(snapshot.open_questions) if snapshot is not None else []
+            ),
+            last_failure_class=(
+                snapshot.last_failure_class if snapshot is not None else None
+            ),
             pending_repair=snapshot.pending_repair if snapshot is not None else None,
-            repairing_command_id=snapshot.repairing_command_id if snapshot is not None else None,
+            repairing_command_id=(
+                snapshot.repairing_command_id if snapshot is not None else None
+            ),
             last_completed_repair=(
                 snapshot.last_completed_repair if snapshot is not None else None
             ),

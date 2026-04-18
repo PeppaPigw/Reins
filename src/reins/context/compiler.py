@@ -68,10 +68,15 @@ class ContextCompiler:
             path = repo_root / name
             if path.is_file():
                 text = path.read_text(encoding="utf-8", errors="replace")
-                shards.append(ContextShard(
-                    tier="A", source=name, content=text,
-                    token_estimate=_estimate_tokens(text), priority=100.0,
-                ))
+                shards.append(
+                    ContextShard(
+                        tier="A",
+                        source=name,
+                        content=text,
+                        token_estimate=_estimate_tokens(text),
+                        priority=100.0,
+                    )
+                )
         self._standing_law = shards
         return shards
 
@@ -101,18 +106,30 @@ class ContextCompiler:
                 f"\nLast completed repair: {repair.get('failure_class', '?')} "
                 f"via {repair.get('command_id', '?')}"
             )
-        shards.append(ContextShard(
-            tier="B", source="snapshot", content=snap_text,
-            token_estimate=_estimate_tokens(snap_text), priority=90.0,
-        ))
+        shards.append(
+            ContextShard(
+                tier="B",
+                source="snapshot",
+                content=snap_text,
+                token_estimate=_estimate_tokens(snap_text),
+                priority=90.0,
+            )
+        )
 
         # Open task nodes
         for node in open_nodes[:5]:
-            text = f"Open node: {node.get('node_id', '?')} — {node.get('objective', '?')}"
-            shards.append(ContextShard(
-                tier="B", source=f"open_node:{node.get('node_id')}",
-                content=text, token_estimate=_estimate_tokens(text), priority=85.0,
-            ))
+            text = (
+                f"Open node: {node.get('node_id', '?')} — {node.get('objective', '?')}"
+            )
+            shards.append(
+                ContextShard(
+                    tier="B",
+                    source=f"open_node:{node.get('node_id')}",
+                    content=text,
+                    token_estimate=_estimate_tokens(text),
+                    priority=85.0,
+                )
+            )
 
         # Eval failures (most recent N)
         for fail in eval_failures[:3]:
@@ -123,18 +140,30 @@ class ContextCompiler:
                 text += f"\nRetry allowed: {fail['retry_allowed']}"
             if fail.get("repair_hints"):
                 text += f"\nRepair hints: {', '.join(fail['repair_hints'])}"
-            shards.append(ContextShard(
-                tier="B", source="eval_failure", content=text,
-                token_estimate=_estimate_tokens(text), priority=88.0,
-            ))
+            shards.append(
+                ContextShard(
+                    tier="B",
+                    source="eval_failure",
+                    content=text,
+                    token_estimate=_estimate_tokens(text),
+                    priority=88.0,
+                )
+            )
 
         # Affected files (just paths)
         if affected_files:
-            text = "Affected files:\n" + "\n".join(f"  {f}" for f in affected_files[:20])
-            shards.append(ContextShard(
-                tier="B", source="affected_files", content=text,
-                token_estimate=_estimate_tokens(text), priority=80.0,
-            ))
+            text = "Affected files:\n" + "\n".join(
+                f"  {f}" for f in affected_files[:20]
+            )
+            shards.append(
+                ContextShard(
+                    tier="B",
+                    source="affected_files",
+                    content=text,
+                    token_estimate=_estimate_tokens(text),
+                    priority=80.0,
+                )
+            )
 
         return shards
 
@@ -150,8 +179,11 @@ class ContextCompiler:
             if s.get("invariants"):
                 text += f"\n  Invariants: {s['invariants']}"
             shard = ContextShard(
-                tier="C", source=f"episode:{s.get('episode_id')}",
-                content=text, token_estimate=_estimate_tokens(text), priority=50.0,
+                tier="C",
+                source=f"episode:{s.get('episode_id')}",
+                content=text,
+                token_estimate=_estimate_tokens(text),
+                priority=50.0,
             )
             shards.append(shard)
         self._folded = shards
@@ -164,11 +196,15 @@ class ContextCompiler:
         shards: list[ContextShard] = []
         for item in items:
             text = str(item.get("content", ""))
-            shards.append(ContextShard(
-                tier="D", source=item.get("source", "cold"),
-                content=text, token_estimate=_estimate_tokens(text),
-                priority=item.get("priority", 20.0),
-            ))
+            shards.append(
+                ContextShard(
+                    tier="D",
+                    source=item.get("source", "cold"),
+                    content=text,
+                    token_estimate=_estimate_tokens(text),
+                    priority=item.get("priority", 20.0),
+                )
+            )
         return shards
 
     # ------------------------------------------------------------------

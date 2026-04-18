@@ -38,13 +38,15 @@ def test_active_set_includes_repair_metadata():
         run_id="run-1",
         snapshot={"run_phase": "resumable"},
         open_nodes=[],
-        eval_failures=[{
-            "failure_class": "logic_failure",
-            "details": "assertion failed",
-            "repair_route": "change_hypothesis",
-            "retry_allowed": False,
-            "repair_hints": ["fix assertion", "rewrite expectation"],
-        }],
+        eval_failures=[
+            {
+                "failure_class": "logic_failure",
+                "details": "assertion failed",
+                "repair_route": "change_hypothesis",
+                "retry_allowed": False,
+                "repair_hints": ["fix assertion", "rewrite expectation"],
+            }
+        ],
         affected_files=[],
     )
 
@@ -83,18 +85,28 @@ def test_active_set_includes_last_completed_repair_in_snapshot():
         affected_files=[],
     )
     snapshot_shard = next(shard for shard in shards if shard.source == "snapshot")
-    assert "Last completed repair: logic_failure via cmd-repair-1" in snapshot_shard.content
+    assert (
+        "Last completed repair: logic_failure via cmd-repair-1"
+        in snapshot_shard.content
+    )
 
 
 def test_compile_respects_budget():
     compiler = ContextCompiler(token_budget=50)
     # Tier A shard
-    big = ContextShard(tier="A", source="agents.md", content="x" * 200,
-                       token_estimate=50, priority=100.0)
-    small = ContextShard(tier="B", source="nodes", content="y" * 40,
-                         token_estimate=10, priority=90.0)
-    tiny = ContextShard(tier="C", source="episode", content="z" * 40,
-                        token_estimate=10, priority=50.0)
+    big = ContextShard(
+        tier="A",
+        source="agents.md",
+        content="x" * 200,
+        token_estimate=50,
+        priority=100.0,
+    )
+    small = ContextShard(
+        tier="B", source="nodes", content="y" * 40, token_estimate=10, priority=90.0
+    )
+    tiny = ContextShard(
+        tier="C", source="episode", content="z" * 40, token_estimate=10, priority=50.0
+    )
 
     compiler._standing_law = [big]
     ws = compiler.compile("run-1", [small, tiny])
@@ -108,10 +120,12 @@ def test_compile_respects_budget():
 
 def test_compile_drops_lowest_priority():
     compiler = ContextCompiler(token_budget=100)
-    hi = ContextShard(tier="A", source="law", content="x" * 200,
-                      token_estimate=60, priority=100.0)
-    lo = ContextShard(tier="D", source="cold", content="y" * 200,
-                      token_estimate=60, priority=10.0)
+    hi = ContextShard(
+        tier="A", source="law", content="x" * 200, token_estimate=60, priority=100.0
+    )
+    lo = ContextShard(
+        tier="D", source="cold", content="y" * 200, token_estimate=60, priority=10.0
+    )
 
     ws = compiler.compile("run-1", [hi, lo])
     # Only room for one (60 tokens each, budget 100)

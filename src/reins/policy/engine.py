@@ -31,18 +31,26 @@ class PolicyEngine:
     ) -> PolicyDecision:
         tier_value = CAPABILITY_RISK_TIERS.get(capability)
         if tier_value is None:
-            return PolicyDecision("deny", RiskTier.T4, None, f"unknown capability: {capability}")
+            return PolicyDecision(
+                "deny", RiskTier.T4, None, f"unknown capability: {capability}"
+            )
         risk_tier = RiskTier(tier_value)
         if capability == "a2a.agent.call" or capability.startswith("a2a.agent.call."):
-            return PolicyDecision("route_remote", risk_tier, None, "remote boundary required")
-        matched_grant = self._match_grant(capability, effect_descriptor, active_grants or [])
+            return PolicyDecision(
+                "route_remote", risk_tier, None, "remote boundary required"
+            )
+        matched_grant = self._match_grant(
+            capability, effect_descriptor, active_grants or []
+        )
         if matched_grant is not None:
             return PolicyDecision("allow", risk_tier, None, "matched active grant")
         if risk_tier <= RiskTier.T1:
             grant = f"{run_id}:{requested_by}:{capability}:{ulid.new()}"
             return PolicyDecision("allow", risk_tier, grant, "low-risk capability")
         if risk_tier <= RiskTier.T3:
-            reason = effect_descriptor.summary if effect_descriptor else "approval required"
+            reason = (
+                effect_descriptor.summary if effect_descriptor else "approval required"
+            )
             return PolicyDecision("ask", risk_tier, None, reason)
         return PolicyDecision("deny", risk_tier, None, "risk tier exceeds local policy")
 

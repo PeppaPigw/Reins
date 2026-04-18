@@ -26,7 +26,12 @@ class TestEvaluator(Evaluator):
         env = os.environ | {"PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"}
 
         proc = await asyncio.create_subprocess_exec(
-            python, "-m", "pytest", target, "-v", "--tb=short",
+            python,
+            "-m",
+            "pytest",
+            target,
+            "-v",
+            "--tb=short",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,

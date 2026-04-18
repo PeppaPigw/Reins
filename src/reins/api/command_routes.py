@@ -1,4 +1,5 @@
 """Reins REST API — command proposal and approval routes."""
+
 from __future__ import annotations
 
 import logging
@@ -71,7 +72,9 @@ async def handle_approve(request: web.Request) -> web.Response:
         return _error("request_id is required")
 
     try:
-        grant = await reg.approve(run_id, request_id, granted_by=body.get("granted_by", "human"))
+        grant = await reg.approve(
+            run_id, request_id, granted_by=body.get("granted_by", "human")
+        )
     except KeyError:
         return _error(f"run not found: {run_id}", 404)
     except Exception as exc:
@@ -102,7 +105,9 @@ async def handle_reject(request: web.Request) -> web.Response:
 
     try:
         rejection = await reg.reject(
-            run_id, request_id, reason=reason,
+            run_id,
+            request_id,
+            reason=reason,
             rejected_by=body.get("rejected_by", "human"),
         )
     except KeyError:
@@ -163,5 +168,10 @@ async def handle_resume(request: web.Request) -> web.Response:
         log.exception("resume failed")
         return _error(str(exc), 500)
 
-    return _json({"run_id": state.run_id, "status": state.status.value,
-                  "last_checkpoint_id": state.last_checkpoint_id})
+    return _json(
+        {
+            "run_id": state.run_id,
+            "status": state.status.value,
+            "last_checkpoint_id": state.last_checkpoint_id,
+        }
+    )

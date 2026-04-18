@@ -56,30 +56,41 @@ class EventBuilder:
 
     async def emit_run_started(self, run_id: str, objective: str) -> EventEnvelope:
         return await self.commit(
-            run_id, "run.started",
+            run_id,
+            "run.started",
             {"objective": objective},
             actor=Actor.runtime,
         )
 
     async def emit_path_routed(self, run_id: str, path: str) -> EventEnvelope:
         return await self.commit(
-            run_id, "path.routed",
+            run_id,
+            "path.routed",
             {"path": path},
             actor=Actor.runtime,
         )
 
     async def emit_grant_issued(
-        self, run_id: str, grant_id: str, capability: str,
-        scope: str, issued_to: str, ttl_seconds: int,
+        self,
+        run_id: str,
+        grant_id: str,
+        capability: str,
+        scope: str,
+        issued_to: str,
+        ttl_seconds: int,
         approval_hash: str | None = None,
         inherited: bool = False,
     ) -> EventEnvelope:
         return await self.commit(
-            run_id, "policy.grant_issued",
+            run_id,
+            "policy.grant_issued",
             {
-                "grant_id": grant_id, "capability": capability,
-                "scope": scope, "issued_to": issued_to,
-                "ttl_seconds": ttl_seconds, "approval_hash": approval_hash,
+                "grant_id": grant_id,
+                "capability": capability,
+                "scope": scope,
+                "issued_to": issued_to,
+                "ttl_seconds": ttl_seconds,
+                "approval_hash": approval_hash,
                 "issued_at": time.time(),
                 "inherited": inherited,
             },
@@ -88,7 +99,8 @@ class EventBuilder:
 
     async def emit_grant_revoked(self, run_id: str, grant_id: str) -> EventEnvelope:
         return await self.commit(
-            run_id, "policy.grant_revoked",
+            run_id,
+            "policy.grant_revoked",
             {"grant_id": grant_id},
             actor=Actor.policy,
         )
@@ -101,7 +113,8 @@ class EventBuilder:
         descriptor_hash: str | None = None,
     ) -> EventEnvelope:
         return await self.commit(
-            run_id, "approval.requested",
+            run_id,
+            "approval.requested",
             {
                 "approval_id": approval_id,
                 "summary": effect_summary,
@@ -111,21 +124,30 @@ class EventBuilder:
         )
 
     async def emit_approval_resolved(
-        self, run_id: str, approval_id: str, decision: str,
+        self,
+        run_id: str,
+        approval_id: str,
+        decision: str,
     ) -> EventEnvelope:
         return await self.commit(
-            run_id, "approval.resolved",
+            run_id,
+            "approval.resolved",
             {"approval_id": approval_id, "decision": decision},
             actor=Actor.human,
         )
 
     async def emit_command_executed(
-        self, run_id: str, command_id: str, observation: dict,
+        self,
+        run_id: str,
+        command_id: str,
+        observation: dict,
     ) -> EventEnvelope:
         return await self.commit(
-            run_id, "command.executed",
+            run_id,
+            "command.executed",
             {"command_id": command_id, "observation": observation},
-            actor=Actor.runtime, command_id=command_id,
+            actor=Actor.runtime,
+            command_id=command_id,
         )
 
     async def emit_handle_opened(self, run_id: str, handle: HandleRef) -> EventEnvelope:
@@ -141,14 +163,21 @@ class EventBuilder:
         )
 
     async def emit_eval_completed(
-        self, run_id: str, eval_id: str, passed: bool,
-        failure_class: str | None = None, details: str = "",
+        self,
+        run_id: str,
+        eval_id: str,
+        passed: bool,
+        failure_class: str | None = None,
+        details: str = "",
     ) -> EventEnvelope:
         return await self.commit(
-            run_id, "eval.completed",
+            run_id,
+            "eval.completed",
             {
-                "eval_id": eval_id, "passed": passed,
-                "failure_class": failure_class, "details": details,
+                "eval_id": eval_id,
+                "passed": passed,
+                "failure_class": failure_class,
+                "details": details,
             },
             actor=Actor.evaluator,
         )
@@ -222,35 +251,48 @@ class EventBuilder:
         return await self.commit(run_id, "run.completed", {}, actor=Actor.runtime)
 
     async def emit_run_failed(
-        self, run_id: str, failure_class: str, reason: str,
+        self,
+        run_id: str,
+        failure_class: str,
+        reason: str,
     ) -> EventEnvelope:
         return await self.commit(
-            run_id, "run.failed",
+            run_id,
+            "run.failed",
             {"failure_class": failure_class, "reason": reason},
             actor=Actor.runtime,
         )
 
     async def emit_run_dehydrated(
-        self, run_id: str, checkpoint_id: str, snapshot_id: str | None = None,
+        self,
+        run_id: str,
+        checkpoint_id: str,
+        snapshot_id: str | None = None,
     ) -> EventEnvelope:
         return await self.commit(
-            run_id, "run.dehydrated",
+            run_id,
+            "run.dehydrated",
             {"checkpoint_id": checkpoint_id, "snapshot_id": snapshot_id},
             actor=Actor.runtime,
         )
 
     async def emit_run_hydrated(
-        self, run_id: str, checkpoint_id: str, snapshot_id: str | None = None,
+        self,
+        run_id: str,
+        checkpoint_id: str,
+        snapshot_id: str | None = None,
     ) -> EventEnvelope:
         return await self.commit(
-            run_id, "run.hydrated",
+            run_id,
+            "run.hydrated",
             {"checkpoint_id": checkpoint_id, "snapshot_id": snapshot_id},
             actor=Actor.runtime,
         )
 
     async def emit_run_aborted(self, run_id: str, reason: str) -> EventEnvelope:
         return await self.commit(
-            run_id, "run.aborted",
+            run_id,
+            "run.aborted",
             {"reason": reason},
             actor=Actor.human,
         )

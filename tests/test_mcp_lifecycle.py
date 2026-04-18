@@ -203,7 +203,9 @@ async def test_invoke_tool_auto_reconnect_on_inactive():
 
     mock_transport = MagicMock()
     mock_transport.send = AsyncMock(
-        return_value=JsonRpcResponse(jsonrpc="2.0", id="1", result={"output": "success"})
+        return_value=JsonRpcResponse(
+            jsonrpc="2.0", id="1", result={"output": "success"}
+        )
     )
     mock_transport.close = AsyncMock()
 

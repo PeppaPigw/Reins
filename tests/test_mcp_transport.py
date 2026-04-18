@@ -95,6 +95,7 @@ async def test_http_transport_http_error():
 
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         import httpx
+
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_post.side_effect = httpx.HTTPStatusError(
@@ -117,6 +118,7 @@ async def test_http_transport_connection_error():
 
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         import httpx
+
         mock_post.side_effect = httpx.ConnectError("Connection refused")
 
         request = JsonRpcRequest(method="test", params={}, id="test-id")

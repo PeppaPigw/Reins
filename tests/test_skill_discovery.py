@@ -12,7 +12,8 @@ def skill_dir(tmp_path):
     # Create skill1
     skill1_dir = tmp_path / "skills" / "skill1"
     skill1_dir.mkdir(parents=True)
-    (skill1_dir / "SKILL.md").write_text("""# Data Analysis Skill
+    (skill1_dir / "SKILL.md").write_text(
+        """# Data Analysis Skill
 
 Analyzes data and generates insights.
 
@@ -28,12 +29,14 @@ Analyzes data and generates insights.
 ## Usage
 
 Use this skill to analyze datasets.
-""")
+"""
+    )
 
     # Create skill2
     skill2_dir = tmp_path / "skills" / "skill2"
     skill2_dir.mkdir(parents=True)
-    (skill2_dir / "SKILL.md").write_text("""# Code Review Skill
+    (skill2_dir / "SKILL.md").write_text(
+        """# Code Review Skill
 
 Reviews code for quality and security issues.
 
@@ -51,12 +54,14 @@ Reviews code for quality and security issues.
 ## Usage
 
 Use this skill to review code changes.
-""")
+"""
+    )
 
     # Create skill3 (minimal metadata)
     skill3_dir = tmp_path / "skills" / "skill3"
     skill3_dir.mkdir(parents=True)
-    (skill3_dir / "SKILL.md").write_text("""# Simple Skill
+    (skill3_dir / "SKILL.md").write_text(
+        """# Simple Skill
 
 A simple skill with minimal metadata.
 
@@ -67,7 +72,8 @@ A simple skill with minimal metadata.
 ## Usage
 
 Basic usage.
-""")
+"""
+    )
 
     return tmp_path
 
@@ -259,7 +265,8 @@ def test_manifest_hash_uniqueness(skill_dir):
 def test_parse_metadata_with_single_values(tmp_path):
     """Test parsing metadata with single values (not lists)."""
     skill_file = tmp_path / "SKILL.md"
-    skill_file.write_text("""# Test Skill
+    skill_file.write_text(
+        """# Test Skill
 
 Description
 
@@ -269,7 +276,8 @@ Description
 - **version**: 1.0.0
 - **tags**: single-tag
 - **trust_tier**: 3
-""")
+"""
+    )
 
     discovery = SkillDiscovery([])
     manifest = discovery.parse(skill_file)
@@ -284,7 +292,8 @@ Description
 def test_parse_metadata_with_empty_lists(tmp_path):
     """Test parsing metadata with empty or missing fields."""
     skill_file = tmp_path / "SKILL.md"
-    skill_file.write_text("""# Test Skill
+    skill_file.write_text(
+        """# Test Skill
 
 Description
 
@@ -292,7 +301,8 @@ Description
 
 - **skill_id**: test-skill
 - **version**: 1.0.0
-""")
+"""
+    )
 
     discovery = SkillDiscovery([])
     manifest = discovery.parse(skill_file)

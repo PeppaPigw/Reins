@@ -63,6 +63,7 @@ def skill_registry(tmp_path):
 
     # Write to registry file
     import json
+
     with open(registry_file, "w") as f:
         for skill in skills:
             f.write(json.dumps(skill.__dict__) + "\n")

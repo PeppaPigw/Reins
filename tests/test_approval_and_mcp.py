@@ -8,6 +8,7 @@ from reins.policy.approval.ledger import ApprovalLedger, EffectDescriptor
 
 # ---- Approval Ledger ----
 
+
 @pytest.mark.asyncio
 async def test_request_and_approve(tmp_path):
     ledger = ApprovalLedger(tmp_path / "approvals")
@@ -58,7 +59,9 @@ async def test_effect_descriptor_hash_deterministic():
     assert e1.descriptor_hash == e2.descriptor_hash
     e3 = EffectDescriptor(capability="x", resource="b", intent_ref="i", command_id="c")
     assert e1.descriptor_hash != e3.descriptor_hash
-    e4 = EffectDescriptor(capability="a", resource="b", intent_ref="other", command_id="other")
+    e4 = EffectDescriptor(
+        capability="a", resource="b", intent_ref="other", command_id="other"
+    )
     assert e1.descriptor_hash == e4.descriptor_hash
 
 
@@ -84,6 +87,7 @@ async def test_pending_requests_survive_restart(tmp_path):
 
 # ---- MCP Session Manager ----
 
+
 @pytest.mark.asyncio
 async def test_mcp_connect_and_list_tools():
     mgr = McpSessionManager()
@@ -93,7 +97,10 @@ async def test_mcp_connect_and_list_tools():
         endpoint="stdio://codex",
         tools=[
             {"name": "codex.run", "input_schema": {"prompt": "str"}},
-            {"name": "codex.reply", "input_schema": {"prompt": "str", "threadId": "str"}},
+            {
+                "name": "codex.reply",
+                "input_schema": {"prompt": "str", "threadId": "str"},
+            },
         ],
     )
     assert session.active
@@ -131,8 +138,12 @@ async def test_mcp_invoke_records_audit():
     with patch("reins.execution.mcp.session.create_transport") as mock_create:
         mock_create.return_value = mock_transport
 
-        await mgr.connect("s1", "Server1", "stdio://s1",
-                          tools=[{"name": "do_thing", "input_schema": {}}])
+        await mgr.connect(
+            "s1",
+            "Server1",
+            "stdio://s1",
+            tools=[{"name": "do_thing", "input_schema": {}}],
+        )
         result = await mgr.invoke_tool("s1", "do_thing", {"x": 1}, "run-1")
 
         assert result["call_id"]

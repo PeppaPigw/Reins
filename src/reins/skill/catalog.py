@@ -56,9 +56,16 @@ class SkillRegistry:
         wanted_tags = {tag.lower() for tag in tags}
         results: list[tuple[int, SkillDescriptor]] = []
         for descriptor in self._skills.values():
-            haystack = " ".join([descriptor.name, descriptor.description, *descriptor.tags]).lower()
-            tag_hits = wanted_tags.intersection({tag.lower() for tag in descriptor.tags})
+            haystack = " ".join(
+                [descriptor.name, descriptor.description, *descriptor.tags]
+            ).lower()
+            tag_hits = wanted_tags.intersection(
+                {tag.lower() for tag in descriptor.tags}
+            )
             score = sum(term in haystack for term in terms) + len(tag_hits) * 2
             if score > 0 or not terms:
                 results.append((score, descriptor))
-        return [descriptor for _, descriptor in sorted(results, key=lambda item: item[0], reverse=True)]
+        return [
+            descriptor
+            for _, descriptor in sorted(results, key=lambda item: item[0], reverse=True)
+        ]

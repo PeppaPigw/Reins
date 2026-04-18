@@ -128,8 +128,11 @@ class SubagentManager:
         # Create child orchestrator
         context = ContextCompiler(token_budget=spec.token_budget)
         child_orch = RunOrchestrator(
-            self._journal, self._snapshot_store,
-            self._checkpoint_store, self._policy, context,
+            self._journal,
+            self._snapshot_store,
+            self._checkpoint_store,
+            self._policy,
+            context,
         )
         self._children[handle.handle_id] = child_orch
 
@@ -166,7 +169,9 @@ class SubagentManager:
         return True
 
     async def complete(
-        self, handle_id: str, result: dict[str, Any],
+        self,
+        handle_id: str,
+        result: dict[str, Any],
     ) -> SubagentHandle | None:
         """Mark a subagent as completed with a result."""
         handle = self._active.pop(handle_id, None)
@@ -193,7 +198,9 @@ class SubagentManager:
         return handle
 
     async def fail(
-        self, handle_id: str, reason: str,
+        self,
+        handle_id: str,
+        reason: str,
     ) -> SubagentHandle | None:
         """Mark a subagent as failed."""
         handle = self._active.pop(handle_id, None)

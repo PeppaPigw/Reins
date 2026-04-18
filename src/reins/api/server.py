@@ -8,6 +8,7 @@ Environment:
     REINS_PORT       — bind port (default: 8000)
     REINS_STATE_DIR  — durable state base dir (default: .reins_state)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -57,7 +58,9 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Reins agent kernel HTTP API")
     parser.add_argument("--host", default=os.getenv("REINS_HOST", "0.0.0.0"))
-    parser.add_argument("--port", type=int, default=int(os.getenv("REINS_PORT", "8000")))
+    parser.add_argument(
+        "--port", type=int, default=int(os.getenv("REINS_PORT", "8000"))
+    )
     parser.add_argument(
         "--state-dir",
         default=os.getenv("REINS_STATE_DIR", ".reins_state"),

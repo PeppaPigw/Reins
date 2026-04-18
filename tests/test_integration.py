@@ -71,7 +71,9 @@ async def test_full_vertical_slice(tmp_path):
 
     # ---- Phase 3: Execute a safe read command ----
     read_proposal = CommandProposal(
-        run_id="integration-1", source="model", kind="fs.read",
+        run_id="integration-1",
+        source="model",
+        kind="fs.read",
         args={"root": str(workspace), "path": "src/auth.py"},
     )
 
@@ -82,7 +84,9 @@ async def test_full_vertical_slice(tmp_path):
 
     # ---- Phase 4: Execute a write command (also T1 → auto-allow) ----
     write_proposal = CommandProposal(
-        run_id="integration-1", source="model", kind="fs.write.workspace",
+        run_id="integration-1",
+        source="model",
+        kind="fs.write.workspace",
         args={
             "root": str(workspace),
             "path": "src/auth.py",
@@ -109,10 +113,13 @@ async def test_full_vertical_slice(tmp_path):
     assert await sub_mgr.report_turn(sub_handle.handle_id) is True
 
     # Subagent completes
-    await sub_mgr.complete(sub_handle.handle_id, {
-        "summary": "added 3 tests for Auth class",
-        "tests_added": ["test_auth_init", "test_auth_login", "test_auth_logout"],
-    })
+    await sub_mgr.complete(
+        sub_handle.handle_id,
+        {
+            "summary": "added 3 tests for Auth class",
+            "tests_added": ["test_auth_init", "test_auth_login", "test_auth_logout"],
+        },
+    )
     assert sub_mgr.active_count == 0
 
     # ---- Phase 6: Integrated evaluation ----
@@ -131,8 +138,10 @@ async def test_full_vertical_slice(tmp_path):
 
     # ---- Phase 7: Approval ledger (for a high-risk op) ----
     effect = EffectDescriptor(
-        capability="git.push", resource="origin/main",
-        intent_ref="integration-1", command_id="cmd-push",
+        capability="git.push",
+        resource="origin/main",
+        intent_ref="integration-1",
+        command_id="cmd-push",
     )
     req = await approvals.request("integration-1", effect, "model")
     assert len(approvals.pending) == 1
@@ -170,11 +179,15 @@ async def test_full_vertical_slice(tmp_path):
         eval_failures=[],
         affected_files=["src/auth.py"],
     )
-    folded = context.add_folded([{
-        "episode_id": "ep-1",
-        "outcome": "auth module refactored and tested",
-        "decisions": ["used handle-based adapter for fs write"],
-    }])
+    folded = context.add_folded(
+        [
+            {
+                "episode_id": "ep-1",
+                "outcome": "auth module refactored and tested",
+                "decisions": ["used handle-based adapter for fs write"],
+            }
+        ]
+    )
     ws = context.compile("integration-1", active_shards, folded)
     assert ws.total_tokens > 0
     assert ws.total_tokens <= ws.budget

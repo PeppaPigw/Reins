@@ -77,7 +77,9 @@ class ExecutionDispatcher:
             frozen.append(await adapter.freeze(handle))
         return frozen
 
-    async def thaw_run(self, run_id: str, frozen_handles: list[dict]) -> list[HandleRef]:
+    async def thaw_run(
+        self, run_id: str, frozen_handles: list[dict]
+    ) -> list[HandleRef]:
         restored: list[HandleRef] = []
         for frozen in frozen_handles:
             adapter_kind = frozen["adapter_kind"]
@@ -156,7 +158,11 @@ class ExecutionDispatcher:
         if capability in {"exec.shell.sandboxed", "exec.shell.network"}:
             cwd = args.get("cwd", ".")
             env = args.get("env", {})
-            adapter_kind = "shell_sandboxed" if capability == "exec.shell.sandboxed" else "shell_network"
+            adapter_kind = (
+                "shell_sandboxed"
+                if capability == "exec.shell.sandboxed"
+                else "shell_network"
+            )
             return (
                 adapter_kind,
                 {"cwd": cwd, "env": env},
@@ -179,7 +185,11 @@ class ExecutionDispatcher:
             server_id = args.get("server_id", "default")
             return (
                 "mcp",
-                {"server_id": server_id, "name": args.get("name", server_id), "endpoint": args.get("endpoint", "")},
+                {
+                    "server_id": server_id,
+                    "name": args.get("name", server_id),
+                    "endpoint": args.get("endpoint", ""),
+                },
                 {
                     "op": "invoke_tool",
                     "tool_name": args["tool_name"],
@@ -191,14 +201,26 @@ class ExecutionDispatcher:
             server_id = args.get("server_id", "default")
             return (
                 "mcp",
-                {"server_id": server_id, "name": args.get("name", server_id), "endpoint": args.get("endpoint", "")},
+                {
+                    "server_id": server_id,
+                    "name": args.get("name", server_id),
+                    "endpoint": args.get("endpoint", ""),
+                },
                 {"op": "read_resource", "uri": args["uri"]},
             )
         if capability == "mcp.prompt.get":
             server_id = args.get("server_id", "default")
             return (
                 "mcp",
-                {"server_id": server_id, "name": args.get("name", server_id), "endpoint": args.get("endpoint", "")},
-                {"op": "get_prompt", "name": args["prompt_name"], "args": args.get("args", {})},
+                {
+                    "server_id": server_id,
+                    "name": args.get("name", server_id),
+                    "endpoint": args.get("endpoint", ""),
+                },
+                {
+                    "op": "get_prompt",
+                    "name": args["prompt_name"],
+                    "args": args.get("args", {}),
+                },
             )
         raise ValueError(f"unsupported capability for dispatcher: {capability}")

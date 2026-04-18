@@ -10,7 +10,9 @@ from reins.kernel.types import Actor, FailureClass, GrantRef, PathKind, RunStatu
 
 
 def make_event(event_type: str, payload: dict) -> EventEnvelope:
-    return EventEnvelope(run_id="run-1", actor=Actor.runtime, type=event_type, payload=payload)
+    return EventEnvelope(
+        run_id="run-1", actor=Actor.runtime, type=event_type, payload=payload
+    )
 
 
 def test_run_started() -> None:
@@ -33,7 +35,9 @@ def test_grant_issued_and_revoked() -> None:
     }
     issued = reduce(state, make_event("policy.grant_issued", grant))
     assert issued.active_grants == [GrantRef(**grant)]
-    revoked = reduce(issued, make_event("policy.grant_revoked", {"grant_id": "grant-1"}))
+    revoked = reduce(
+        issued, make_event("policy.grant_revoked", {"grant_id": "grant-1"})
+    )
     assert revoked.active_grants == []
 
 

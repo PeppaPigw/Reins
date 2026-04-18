@@ -16,7 +16,9 @@ class GitAdapter(Adapter):
 
     async def open(self, spec: dict) -> Handle:
         repo = Path(spec["repo"]).resolve()
-        handle = Handle(adapter_kind="git", adapter_id=self.adapter_id, metadata={"repo": str(repo)})
+        handle = Handle(
+            adapter_kind="git", adapter_id=self.adapter_id, metadata={"repo": str(repo)}
+        )
         self._repos[handle.handle_id] = repo
         return handle
 
@@ -50,18 +52,28 @@ class GitAdapter(Adapter):
         if op == "commit":
             if command.get("add_all", True):
                 await self._run(repo, "add", "-A")
-            stdout, stderr, code = await self._run(repo, "commit", "-m", command["message"])
+            stdout, stderr, code = await self._run(
+                repo, "commit", "-m", command["message"]
+            )
             artifacts = await self._capture_commit_artifact(repo) if code == 0 else []
-            return Observation(stdout, stderr, code, artifacts, {"op": op, "repo": str(repo)})
+            return Observation(
+                stdout, stderr, code, artifacts, {"op": op, "repo": str(repo)}
+            )
         if args is None:
-            return Observation("", f"unsupported op: {op}", 1, effect_descriptor={"op": op})
+            return Observation(
+                "", f"unsupported op: {op}", 1, effect_descriptor={"op": op}
+            )
         stdout, stderr, code = await self._run(repo, *args)
-        return Observation(stdout, stderr, code, effect_descriptor={"op": op, "repo": str(repo)})
+        return Observation(
+            stdout, stderr, code, effect_descriptor={"op": op, "repo": str(repo)}
+        )
 
     async def _capture_commit_artifact(self, repo: Path) -> list[ArtifactRef]:
         artifact_dir = repo / ".reins-artifacts"
         artifact_dir.mkdir(exist_ok=True)
-        stdout, _, _ = await self._run(repo, "show", "--stat", "--format=medium", "HEAD")
+        stdout, _, _ = await self._run(
+            repo, "show", "--stat", "--format=medium", "HEAD"
+        )
         path = artifact_dir / f"git-{ulid.new()}.txt"
         path.write_text(stdout)
         return [ArtifactRef(str(ulid.new()), "git.diff", path.as_uri())]
@@ -92,7 +104,9 @@ class GitAdapter(Adapter):
         return handle
 
     async def reset(self, handle: Handle) -> Handle:
-        new_handle = Handle(adapter_kind="git", adapter_id=self.adapter_id, metadata=handle.metadata)
+        new_handle = Handle(
+            adapter_kind="git", adapter_id=self.adapter_id, metadata=handle.metadata
+        )
         self._repos[new_handle.handle_id] = self._repos[handle.handle_id]
         self._repos.pop(handle.handle_id, None)
         return new_handle

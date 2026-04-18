@@ -14,6 +14,7 @@ The server holds one RunOrchestrator per run_id.  For a real
 deployment this would back-end to a durable registry; for v1
 it is in-process with file-backed journal/snapshot/checkpoint stores.
 """
+
 from __future__ import annotations
 
 import json
@@ -78,22 +79,26 @@ async def handle_get_run(request: web.Request) -> web.Response:
     state = reg.get_state(run_id)
     if state is None:
         return _error(f"run not found: {run_id}", 404)
-    return _json({
-        "run_id": state.run_id,
-        "status": state.status.value,
-        "last_failure_class": state.last_failure_class.value if state.last_failure_class else None,
-        "pending_approvals": list(state.pending_approvals),
-        "active_grants": [
-            {"grant_id": g.grant_id, "capability": g.capability, "scope": g.scope}
-            for g in state.active_grants
-        ],
-        "open_handles": [
-            {"handle_id": h.handle_id, "adapter_kind": h.adapter_kind}
-            for h in state.open_handles
-        ],
-        "last_checkpoint_id": state.last_checkpoint_id,
-        "snapshot_id": state.snapshot_id,
-    })
+    return _json(
+        {
+            "run_id": state.run_id,
+            "status": state.status.value,
+            "last_failure_class": (
+                state.last_failure_class.value if state.last_failure_class else None
+            ),
+            "pending_approvals": list(state.pending_approvals),
+            "active_grants": [
+                {"grant_id": g.grant_id, "capability": g.capability, "scope": g.scope}
+                for g in state.active_grants
+            ],
+            "open_handles": [
+                {"handle_id": h.handle_id, "adapter_kind": h.adapter_kind}
+                for h in state.open_handles
+            ],
+            "last_checkpoint_id": state.last_checkpoint_id,
+            "snapshot_id": state.snapshot_id,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------

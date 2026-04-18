@@ -17,6 +17,7 @@ import httpx
 @dataclass
 class JsonRpcRequest:
     """JSON-RPC 2.0 request."""
+
     jsonrpc: str = "2.0"
     method: str = ""
     params: dict | list | None = None
@@ -34,6 +35,7 @@ class JsonRpcRequest:
 @dataclass
 class JsonRpcResponse:
     """JSON-RPC 2.0 response."""
+
     jsonrpc: str
     id: int | str | None
     result: Any | None = None

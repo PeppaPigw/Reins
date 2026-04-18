@@ -21,13 +21,29 @@ from reins.kernel.types import FailureClass
 class SpecEvaluator(Evaluator):
     """Structural compliance checker against spec contracts."""
 
-    REQUIRED_ADAPTER_METHODS = frozenset({
-        "open", "exec", "snapshot", "freeze", "thaw", "reset", "close",
-    })
+    REQUIRED_ADAPTER_METHODS = frozenset(
+        {
+            "open",
+            "exec",
+            "snapshot",
+            "freeze",
+            "thaw",
+            "reset",
+            "close",
+        }
+    )
 
-    FORBIDDEN_REDUCER_IMPORTS = frozenset({
-        "aiofiles", "asyncio", "subprocess", "os", "shutil", "requests", "aiohttp",
-    })
+    FORBIDDEN_REDUCER_IMPORTS = frozenset(
+        {
+            "aiofiles",
+            "asyncio",
+            "subprocess",
+            "os",
+            "shutil",
+            "requests",
+            "aiohttp",
+        }
+    )
 
     async def evaluate(self, context: dict) -> EvalResult:
         cwd = Path(context.get("cwd", "."))

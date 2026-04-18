@@ -18,9 +18,16 @@ async def test_timeline_reconstructs_run(tmp_path):
     await builder.emit_run_started("run-1", "implement feature X")
     await builder.emit_path_routed("run-1", "deliberative")
     await builder.emit_grant_issued(
-        "run-1", "g1", "fs.write.workspace", "workspace", "model", 600,
+        "run-1",
+        "g1",
+        "fs.write.workspace",
+        "workspace",
+        "model",
+        600,
     )
-    await builder.emit_command_executed("run-1", "cmd-1", {"stdout": "ok", "exit_code": 0})
+    await builder.emit_command_executed(
+        "run-1", "cmd-1", {"stdout": "ok", "exit_code": 0}
+    )
     await builder.emit_eval_completed("run-1", "eval-1", True, details="all tests pass")
     await builder.emit_run_completed("run-1")
 
@@ -51,7 +58,9 @@ async def test_timeline_captures_failure(tmp_path):
     builder = EventBuilder(journal)
 
     await builder.emit_run_started("run-2", "broken task")
-    await builder.emit_run_failed("run-2", "logic_failure", "assertion error in test_foo")
+    await builder.emit_run_failed(
+        "run-2", "logic_failure", "assertion error in test_foo"
+    )
 
     tl = await TimelineBuilder(journal).build("run-2")
     assert tl.final_status == RunStatus.failed
@@ -66,15 +75,26 @@ async def test_timeline_tracks_subagents(tmp_path):
 
     await builder.emit_run_started("run-3", "parent task")
     await builder.commit(
-        "run-3", "subagent.spawned",
-        {"child_run_id": "child-1", "objective": "sub task", "max_turns": 10,
-         "token_budget": 30000, "inherited_grants": []},
+        "run-3",
+        "subagent.spawned",
+        {
+            "child_run_id": "child-1",
+            "objective": "sub task",
+            "max_turns": 10,
+            "token_budget": 30000,
+            "inherited_grants": [],
+        },
         correlation_id="child-1",
     )
     await builder.commit(
-        "run-3", "subagent.completed",
-        {"child_run_id": "child-1", "objective": "sub task",
-         "turns_used": 3, "result_summary": "done"},
+        "run-3",
+        "subagent.completed",
+        {
+            "child_run_id": "child-1",
+            "objective": "sub task",
+            "turns_used": 3,
+            "result_summary": "done",
+        },
         correlation_id="child-1",
     )
     await builder.emit_run_completed("run-3")

@@ -42,7 +42,9 @@ async def test_valid_paths_allowed(tmp_path):
     handle = await adapter.open({"root": str(workspace)})
 
     # Write to valid path
-    result = await adapter.exec(handle, {"op": "write", "path": "test.txt", "content": "hello"})
+    result = await adapter.exec(
+        handle, {"op": "write", "path": "test.txt", "content": "hello"}
+    )
     assert result.exit_code == 0
 
     # Read from valid path
@@ -51,7 +53,9 @@ async def test_valid_paths_allowed(tmp_path):
     assert result.stdout == "hello"
 
     # Subdirectory is OK
-    result = await adapter.exec(handle, {"op": "write", "path": "sub/file.txt", "content": "world"})
+    result = await adapter.exec(
+        handle, {"op": "write", "path": "sub/file.txt", "content": "world"}
+    )
     assert result.exit_code == 0
 
     await adapter.close(handle)
@@ -67,11 +71,15 @@ async def test_move_path_escape_blocked(tmp_path):
     handle = await adapter.open({"root": str(workspace)})
 
     # Create a file in workspace
-    result = await adapter.exec(handle, {"op": "write", "path": "test.txt", "content": "data"})
+    result = await adapter.exec(
+        handle, {"op": "write", "path": "test.txt", "content": "data"}
+    )
     assert result.exit_code == 0
 
     # Try to move outside workspace
-    result = await adapter.exec(handle, {"op": "move", "path": "test.txt", "dest": "../outside.txt"})
+    result = await adapter.exec(
+        handle, {"op": "move", "path": "test.txt", "dest": "../outside.txt"}
+    )
     assert result.exit_code != 0
     assert "path escape" in result.stderr
 

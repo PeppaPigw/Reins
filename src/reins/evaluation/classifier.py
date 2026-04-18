@@ -12,9 +12,15 @@ class FailureClassifier:
             return FailureClass.merge_conflict
         if eval_result.get("remote_agent") or "remote agent" in text:
             return FailureClass.remote_agent_failure
-        if eval_result.get("skill_id") and ("activate" in text or "missing tool" in text):
+        if eval_result.get("skill_id") and (
+            "activate" in text or "missing tool" in text
+        ):
             return FailureClass.skill_activation_failure
-        if "timeout" in text or "missing executable" in text or context.get("environment_missing"):
+        if (
+            "timeout" in text
+            or "missing executable" in text
+            or context.get("environment_missing")
+        ):
             return FailureClass.environment_failure
         if "flaky" in text or eval_result.get("retryable"):
             return FailureClass.flaky_eval
@@ -38,7 +44,9 @@ class FailureClassifier:
         }
         return routes[failure_class]
 
-    def retry_allowed(self, failure_class: FailureClass, prior_hypotheses: list[str]) -> bool:
+    def retry_allowed(
+        self, failure_class: FailureClass, prior_hypotheses: list[str]
+    ) -> bool:
         normalized = [item.strip().lower() for item in prior_hypotheses if item.strip()]
         if failure_class == FailureClass.policy_block:
             return False

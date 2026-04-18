@@ -50,7 +50,9 @@ class SkillResolver:
         else:
             return TrustTier.UNTRUSTED
 
-    async def resolve(self, query: str, tags: list[str] | None = None, top_k: int = 5) -> list[SkillDescriptor]:
+    async def resolve(
+        self, query: str, tags: list[str] | None = None, top_k: int = 5
+    ) -> list[SkillDescriptor]:
         candidates = await self.metadata_search(query, tags or [])
         ranked = self.semantic_relevance(query, candidates)
         constrained = self.constraint_filter(ranked)
@@ -58,28 +60,41 @@ class SkillResolver:
         costed = self.cost_estimation(trusted)
         return [item.descriptor for item in self.top_k_manifest_load(costed, top_k)]
 
-    async def metadata_search(self, query: str, tags: list[str]) -> list[SkillDescriptor]:
+    async def metadata_search(
+        self, query: str, tags: list[str]
+    ) -> list[SkillDescriptor]:
         return await self.registry.search(query, tags)
 
-    def semantic_relevance(self, query: str, candidates: list[SkillDescriptor]) -> list[ResolvedSkill]:
+    def semantic_relevance(
+        self, query: str, candidates: list[SkillDescriptor]
+    ) -> list[ResolvedSkill]:
         query_terms = Counter(term.lower() for term in query.split() if term)
         resolved: list[ResolvedSkill] = []
         for descriptor in candidates:
             haystack = Counter(
                 term.lower()
                 for term in " ".join(
-                    [descriptor.name, descriptor.description, *descriptor.tags, *descriptor.outputs]
+                    [
+                        descriptor.name,
+                        descriptor.description,
+                        *descriptor.tags,
+                        *descriptor.outputs,
+                    ]
                 ).split()
             )
             overlap = sum((query_terms & haystack).values())
             trust_classification = self.classify_trust(descriptor.trust_tier)
-            resolved.append(ResolvedSkill(descriptor, float(overlap), 0, trust_classification))
+            resolved.append(
+                ResolvedSkill(descriptor, float(overlap), 0, trust_classification)
+            )
         return sorted(resolved, key=lambda item: item.relevance, reverse=True)
 
     def constraint_filter(self, candidates: list[ResolvedSkill]) -> list[ResolvedSkill]:
         def allowed(item: ResolvedSkill) -> bool:
             tools = set(item.descriptor.required_tools).issubset(self.available_tools)
-            protocols = set(item.descriptor.required_protocols).issubset(self.available_protocols)
+            protocols = set(item.descriptor.required_protocols).issubset(
+                self.available_protocols
+            )
             return tools and protocols
 
         return [item for item in candidates if allowed(item)]
@@ -96,7 +111,11 @@ class SkillResolver:
         """
         if not self.enforce_trust_model:
             # Legacy behavior: only check minimum
-            return [item for item in candidates if item.descriptor.trust_tier >= self.min_trust_tier]
+            return [
+                item
+                for item in candidates
+                if item.descriptor.trust_tier >= self.min_trust_tier
+            ]
 
         # New behavior: enforce trust model
         filtered: list[ResolvedSkill] = []
@@ -108,7 +127,10 @@ class SkillResolver:
                 continue
 
             # Block UNTRUSTED by default unless explicitly allowed
-            if item.trust_classification == TrustTier.UNTRUSTED and self.max_trust_tier < 3:
+            if (
+                item.trust_classification == TrustTier.UNTRUSTED
+                and self.max_trust_tier < 3
+            ):
                 continue
 
             filtered.append(item)
@@ -123,11 +145,19 @@ class SkillResolver:
                 + len(item.descriptor.required_protocols)
                 + len(item.descriptor.dependencies)
             )
-            costed.append(ResolvedSkill(item.descriptor, item.relevance, cost, item.trust_classification))
+            costed.append(
+                ResolvedSkill(
+                    item.descriptor, item.relevance, cost, item.trust_classification
+                )
+            )
         return costed
 
-    def top_k_manifest_load(self, candidates: list[ResolvedSkill], top_k: int) -> list[ResolvedSkill]:
-        ordered = sorted(candidates, key=lambda item: (-item.relevance, item.estimated_cost))
+    def top_k_manifest_load(
+        self, candidates: list[ResolvedSkill], top_k: int
+    ) -> list[ResolvedSkill]:
+        ordered = sorted(
+            candidates, key=lambda item: (-item.relevance, item.estimated_cost)
+        )
         return ordered[:top_k]
 
     def requires_approval(self, skill_id: str) -> bool:
@@ -139,6 +169,7 @@ class SkillResolver:
         """
         # This is a synchronous wrapper - in real usage, call the async version
         import asyncio
+
         return asyncio.run(self.requires_approval_async(skill_id))
 
     async def requires_approval_async(self, skill_id: str) -> bool:
@@ -162,6 +193,7 @@ class SkillResolver:
         Returns None if skill not found.
         """
         import asyncio
+
         return asyncio.run(self.get_trust_classification_async(skill_id))
 
     async def get_trust_classification_async(self, skill_id: str) -> TrustTier | None:

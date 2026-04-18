@@ -67,7 +67,12 @@ class TestRunnerAdapter(Adapter):
         root = handle.metadata.get("root", ".")
         target = command.get("target", "tests/")
         proc = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "pytest", target, "--collect-only", "-q",
+            sys.executable,
+            "-m",
+            "pytest",
+            target,
+            "--collect-only",
+            "-q",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=root,

@@ -84,7 +84,9 @@ async def test_full_lifecycle(tmp_path):
 
     # Process a safe command (fs.read is T0 → auto-allow)
     proposal = CommandProposal(
-        run_id="run-1", source="model", kind="fs.read",
+        run_id="run-1",
+        source="model",
+        kind="fs.read",
         args={"root": str(workspace), "path": "src/foo.py"},
     )
     result = await orch.process_proposal(proposal)
@@ -105,12 +107,17 @@ async def test_policy_deny(tmp_path):
     await orch.route()
 
     proposal = CommandProposal(
-        run_id="run-2", source="model", kind="deploy.prod",
+        run_id="run-2",
+        source="model",
+        kind="deploy.prod",
         args={"target": "production"},
     )
     result = await orch.process_proposal(proposal)
     assert result["granted"] is False
-    assert "risk tier" in result["reason"].lower() or "deny" in result.get("reason", "").lower()
+    assert (
+        "risk tier" in result["reason"].lower()
+        or "deny" in result.get("reason", "").lower()
+    )
 
 
 @pytest.mark.asyncio
@@ -121,7 +128,9 @@ async def test_policy_ask_approval(tmp_path):
     await orch.route()
 
     proposal = CommandProposal(
-        run_id="run-3", source="model", kind="git.push",
+        run_id="run-3",
+        source="model",
+        kind="git.push",
         args={"branch": "main"},
     )
     result = await orch.process_proposal(proposal)
@@ -133,7 +142,9 @@ async def test_policy_ask_approval(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_process_proposal_materializes_command_envelope_before_execution(tmp_path):
+async def test_process_proposal_materializes_command_envelope_before_execution(
+    tmp_path,
+):
     """Trusted commands get their own command id before dispatch."""
     orch = _make_orchestrator(tmp_path)
     await orch.intake(IntentEnvelope(run_id="run-envelope", objective="read file"))
@@ -307,7 +318,9 @@ async def test_successful_repair_attempt_emits_repair_finished(tmp_path):
         }
     )
     orch = _make_orchestrator(tmp_path, evaluation_runner=runner)
-    await orch.intake(IntentEnvelope(run_id="run-repair-finish", objective="repair failure"))
+    await orch.intake(
+        IntentEnvelope(run_id="run-repair-finish", objective="repair failure")
+    )
     await orch.route()
 
     workspace = tmp_path / "workspace"
@@ -405,11 +418,13 @@ async def test_repair_attempt_not_started_for_read_only_command(tmp_path):
 async def test_route_uses_intent_capabilities(tmp_path):
     """Deliberative capabilities on the intent should route out of fast path."""
     orch = _make_orchestrator(tmp_path)
-    await orch.intake(IntentEnvelope(
-        run_id="run-route",
-        objective="push code",
-        requested_capabilities=["git.push"],
-    ))
+    await orch.intake(
+        IntentEnvelope(
+            run_id="run-route",
+            objective="push code",
+            requested_capabilities=["git.push"],
+        )
+    )
 
     path = await orch.route()
     assert path.value == "deliberative"
@@ -419,7 +434,9 @@ async def test_route_uses_intent_capabilities(tmp_path):
 async def test_route_remote_does_not_execute_locally(tmp_path):
     """A2A commands must not fall through to local execution."""
     orch = _make_orchestrator(tmp_path)
-    await orch.intake(IntentEnvelope(run_id="run-remote", objective="call remote agent"))
+    await orch.intake(
+        IntentEnvelope(run_id="run-remote", objective="call remote agent")
+    )
     await orch.route()
 
     result = await orch.process_proposal(
@@ -440,7 +457,9 @@ async def test_route_remote_does_not_execute_locally(tmp_path):
 async def test_approval_resolution_issues_grant(tmp_path):
     """Approving a request should clear pending state and allow exact retry."""
     orch = _make_orchestrator(tmp_path)
-    await orch.intake(IntentEnvelope(run_id="run-approve", objective="write to network"))
+    await orch.intake(
+        IntentEnvelope(run_id="run-approve", objective="write to network")
+    )
     await orch.route()
 
     # Request approval for exec.shell.network (T2 capability)
@@ -469,7 +488,9 @@ async def test_approval_resolution_issues_grant(tmp_path):
     assert grant is not None
     assert orch.state is not None
     assert orch.state.pending_approvals == []
-    assert any(item.capability == "exec.shell.network" for item in orch.state.active_grants)
+    assert any(
+        item.capability == "exec.shell.network" for item in orch.state.active_grants
+    )
     assert retried["granted"] is True
     assert retried["executed"] is True
 
@@ -540,7 +561,9 @@ async def test_unsupported_capability_rejected(tmp_path):
 
     # Use a capability that's not in CAPABILITY_RISK_TIERS at all
     proposal = CommandProposal(
-        run_id="run-7", source="model", kind="email.send",
+        run_id="run-7",
+        source="model",
+        kind="email.send",
         args={"to": "test@example.com", "subject": "test"},
     )
     result = await orch.process_proposal(proposal)

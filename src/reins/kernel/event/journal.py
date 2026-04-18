@@ -15,7 +15,9 @@ from reins.kernel.event.envelope import EventEnvelope, event_from_dict, event_to
 class EventJournal:
     def __init__(self, path: Path | str) -> None:
         self.path = Path(path)
-        self._is_directory = self.path.is_dir() or (not self.path.exists() and not self.path.suffix)
+        self._is_directory = self.path.is_dir() or (
+            not self.path.exists() and not self.path.suffix
+        )
 
         if self._is_directory:
             # Directory mode: create separate file per run_id
@@ -52,7 +54,9 @@ class EventJournal:
             self._seq_cache[event.run_id] = stored.seq
             return stored
 
-    async def read_from(self, run_id: str, from_seq: int = 0) -> AsyncIterator[EventEnvelope]:
+    async def read_from(
+        self, run_id: str, from_seq: int = 0
+    ) -> AsyncIterator[EventEnvelope]:
         run_path = self._get_run_path(run_id)
         if not run_path.exists():
             return

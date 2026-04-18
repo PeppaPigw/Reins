@@ -75,7 +75,9 @@ class SnapshotStore:
         run_dir = self.base_dir / run_id
         if not run_dir.exists():
             return None
-        candidates = sorted(run_dir.glob("*.json"), key=lambda path: path.stat().st_mtime)
+        candidates = sorted(
+            run_dir.glob("*.json"), key=lambda path: path.stat().st_mtime
+        )
         if not candidates:
             return None
         return _snapshot_from_dict(await read_json(candidates[-1]))

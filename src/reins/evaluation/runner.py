@@ -42,7 +42,8 @@ class EvaluationRunner:
         if explicit is not None:
             return [name for name in explicit if name in self._evaluators]
         return [
-            name for name in self._capability_map.get(command.normalized_kind, [])
+            name
+            for name in self._capability_map.get(command.normalized_kind, [])
             if name in self._evaluators
         ]
 
@@ -73,7 +74,11 @@ class EvaluationRunner:
         repair_route = self._classifier.repair_route(failure_class)
         retry_allowed = self._classifier.retry_allowed(
             failure_class,
-            eval_context.get("prior_hypotheses", []) if eval_context is not None else [],
+            (
+                eval_context.get("prior_hypotheses", [])
+                if eval_context is not None
+                else []
+            ),
         )
         return EvaluationOutcome(
             passed=False,
@@ -99,7 +104,12 @@ class EvaluationRunner:
         context.update(command.args)
         context.update(eval_context)
         if "cwd" not in context:
-            context["cwd"] = command.args.get("cwd") or command.args.get("repo") or command.args.get("root") or "."
+            context["cwd"] = (
+                command.args.get("cwd")
+                or command.args.get("repo")
+                or command.args.get("root")
+                or "."
+            )
         if "target" not in context and "path" in command.args:
             context["target"] = command.args["path"]
         return context

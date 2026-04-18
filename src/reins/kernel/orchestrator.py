@@ -22,14 +22,23 @@ from reins.evaluation.runner import EvaluationRunner
 from reins.kernel.event.envelope import EventEnvelope
 from reins.kernel.event.builder import EventBuilder
 from reins.kernel.event.journal import EventJournal
-from reins.kernel.intent.envelope import CommandEnvelope, CommandProposal, IntentEnvelope
+from reins.kernel.intent.envelope import (
+    CommandEnvelope,
+    CommandProposal,
+    IntentEnvelope,
+)
 from reins.kernel.reducer.reducer import REDUCER_VERSION, reduce
 from reins.kernel.reducer.state import RunState, StateSnapshot
 from reins.kernel.routing.router import route
 from reins.kernel.snapshot.store import SnapshotStore
 from reins.kernel.types import FailureClass, PathKind, RiskTier
 from reins.memory.checkpoint import CheckpointStore, DehydrationMachine
-from reins.policy.approval.ledger import ApprovalGrant, ApprovalLedger, ApprovalRejection, EffectDescriptor
+from reins.policy.approval.ledger import (
+    ApprovalGrant,
+    ApprovalLedger,
+    ApprovalRejection,
+    EffectDescriptor,
+)
 from reins.policy.capabilities import CAPABILITY_RISK_TIERS
 from reins.policy.engine import PolicyEngine
 from reins.serde import to_primitive
@@ -83,7 +92,8 @@ class RunOrchestrator:
         self._intent = intent
         self._state = RunState(run_id=intent.run_id)
         event = await self._builder.emit_run_started(
-            intent.run_id, intent.objective,
+            intent.run_id,
+            intent.objective,
         )
         self.apply_event(event)
         return self._state
@@ -91,11 +101,15 @@ class RunOrchestrator:
     # ------------------------------------------------------------------
     # Phase 2: Route — fast path vs deliberative
     # ------------------------------------------------------------------
-    async def route(self, ambiguity_score: float = 0.0, retry_count: int = 0) -> PathKind:
+    async def route(
+        self, ambiguity_score: float = 0.0, retry_count: int = 0
+    ) -> PathKind:
         """Route the run to fast or deliberative path."""
         assert self._state is not None
         requested_capabilities = (
-            list(self._intent.requested_capabilities) if self._intent is not None else []
+            list(self._intent.requested_capabilities)
+            if self._intent is not None
+            else []
         )
         path = route(
             requested_capabilities=requested_capabilities,
@@ -129,7 +143,10 @@ class RunOrchestrator:
         assert self._state is not None
         run_id = self._state.run_id
         if proposal.run_id != run_id:
-            return {"granted": False, "reason": f"proposal run mismatch: {proposal.run_id} != {run_id}"}
+            return {
+                "granted": False,
+                "reason": f"proposal run mismatch: {proposal.run_id} != {run_id}",
+            }
 
         command = self._materialize_command(proposal)
         validation_error = self._validate_command(command)
@@ -152,7 +169,11 @@ class RunOrchestrator:
         )
 
         if decision.decision == "deny":
-            return {"granted": False, "command_id": command.command_id, "reason": decision.reason}
+            return {
+                "granted": False,
+                "command_id": command.command_id,
+                "reason": decision.reason,
+            }
 
         if decision.decision == "route_remote":
             event = await self._builder.commit(
@@ -182,7 +203,9 @@ class RunOrchestrator:
                 }
             request = await self._approvals.request(run_id, effect, proposal.source)
             event = await self._builder.emit_approval_requested(
-                run_id, request.request_id, effect.summary,
+                run_id,
+                request.request_id,
+                effect.summary,
                 descriptor_hash=effect.descriptor_hash,
             )
             self.apply_event(event)
@@ -198,8 +221,11 @@ class RunOrchestrator:
         # 2. Grant issued
         if decision.grant_id:
             event = await self._builder.emit_grant_issued(
-                run_id, decision.grant_id, command.normalized_kind,
-                scope=effect.resource, issued_to=proposal.source,
+                run_id,
+                decision.grant_id,
+                command.normalized_kind,
+                scope=effect.resource,
+                issued_to=proposal.source,
                 ttl_seconds=600,
             )
             self.apply_event(event)
@@ -238,7 +264,9 @@ class RunOrchestrator:
         observation.setdefault("effect_descriptor", to_primitive(effect))
 
         event = await self._builder.emit_command_executed(
-            run_id, command.command_id, observation,
+            run_id,
+            command.command_id,
+            observation,
         )
         self.apply_event(event)
 
@@ -265,7 +293,10 @@ class RunOrchestrator:
                     details=str(result.details),
                 )
                 self.apply_event(eval_event)
-            if outcome.passed and self._state.repairing_command_id == command.command_id:
+            if (
+                outcome.passed
+                and self._state.repairing_command_id == command.command_id
+            ):
                 finishing_eval = outcome.results[-1]
                 repair_finished = await self._builder.emit_repair_finished(
                     run_id,
@@ -279,7 +310,9 @@ class RunOrchestrator:
                 )
                 self.apply_event(repair_finished)
             if not outcome.passed and outcome.failure_class is not None:
-                failing = next((result for result in outcome.results if not result.passed), None)
+                failing = next(
+                    (result for result in outcome.results if not result.passed), None
+                )
                 repair_event = await self._builder.emit_repair_required(
                     run_id,
                     failing.eval_id if failing is not None else command.command_id,
@@ -299,17 +332,25 @@ class RunOrchestrator:
             "observation": observation,
         }
         if outcome is not None:
-            response.update({
-                "eval_passed": outcome.passed,
-                "eval_results": [to_primitive(result) for result in outcome.results],
-                "failure_class": outcome.failure_class.value if outcome.failure_class else None,
-                "repair_route": outcome.repair_route,
-                "retry_allowed": outcome.retry_allowed,
-            })
+            response.update(
+                {
+                    "eval_passed": outcome.passed,
+                    "eval_results": [
+                        to_primitive(result) for result in outcome.results
+                    ],
+                    "failure_class": (
+                        outcome.failure_class.value if outcome.failure_class else None
+                    ),
+                    "repair_route": outcome.repair_route,
+                    "retry_allowed": outcome.retry_allowed,
+                }
+            )
         return response
 
     async def approve(
-        self, request_id: str, granted_by: str = "human",
+        self,
+        request_id: str,
+        granted_by: str = "human",
     ) -> ApprovalGrant | None:
         """Resolve a pending approval request into a grant."""
         assert self._state is not None
@@ -320,7 +361,9 @@ class RunOrchestrator:
             return None
 
         resolved = await self._builder.emit_approval_resolved(
-            self._state.run_id, request_id, "approved",
+            self._state.run_id,
+            request_id,
+            "approved",
         )
         self.apply_event(resolved)
         issued = await self._builder.emit_grant_issued(
@@ -336,7 +379,10 @@ class RunOrchestrator:
         return grant
 
     async def reject(
-        self, request_id: str, reason: str, rejected_by: str = "human",
+        self,
+        request_id: str,
+        reason: str,
+        rejected_by: str = "human",
     ) -> ApprovalRejection | None:
         """Resolve a pending approval request into a rejection."""
         assert self._state is not None
@@ -346,7 +392,9 @@ class RunOrchestrator:
         if rejection is None:
             return None
         resolved = await self._builder.emit_approval_resolved(
-            self._state.run_id, request_id, "rejected",
+            self._state.run_id,
+            request_id,
+            "rejected",
         )
         self.apply_event(resolved)
         return rejection
@@ -365,7 +413,9 @@ class RunOrchestrator:
         """Mark the run as failed with a typed failure class."""
         assert self._state is not None
         event = await self._builder.emit_run_failed(
-            self._state.run_id, failure_class.value, reason,
+            self._state.run_id,
+            failure_class.value,
+            reason,
         )
         self.apply_event(event)
         return self._state
@@ -394,7 +444,9 @@ class RunOrchestrator:
         )
         await self._checkpoints.save(manifest)
         event = await self._builder.emit_run_dehydrated(
-            self._state.run_id, manifest.checkpoint_id, snapshot.snapshot_id,
+            self._state.run_id,
+            manifest.checkpoint_id,
+            snapshot.snapshot_id,
         )
         self.apply_event(event)
         return manifest.checkpoint_id
@@ -408,7 +460,8 @@ class RunOrchestrator:
         self._state = await self._dehydrator.hydrate(manifest, snapshot)
         if self._dispatcher is not None and manifest.frozen_handles:
             restored_handles = await self._dispatcher.thaw_run(
-                manifest.run_id, manifest.frozen_handles,
+                manifest.run_id,
+                manifest.frozen_handles,
             )
             self._state = replace(self._state, open_handles=restored_handles)
         event = await self._builder.emit_run_hydrated(
@@ -437,7 +490,9 @@ class RunOrchestrator:
         return EffectDescriptor(
             capability=command.normalized_kind,
             resource=resource,
-            intent_ref=self._intent.intent_id if self._intent is not None else command.run_id,
+            intent_ref=(
+                self._intent.intent_id if self._intent is not None else command.run_id
+            ),
             command_id=command.command_id,
             preview_ref=command.evidence_refs[0] if command.evidence_refs else None,
             side_effects=[command.normalized_kind],
@@ -445,7 +500,16 @@ class RunOrchestrator:
 
     @staticmethod
     def _infer_resource(args: dict[str, Any]) -> str:
-        for key in ("path", "target", "branch", "resource", "agent", "uri", "repo", "cwd"):
+        for key in (
+            "path",
+            "target",
+            "branch",
+            "resource",
+            "agent",
+            "uri",
+            "repo",
+            "cwd",
+        ):
             value = args.get(key)
             if value:
                 return str(value)
@@ -492,14 +556,23 @@ class RunOrchestrator:
             "a2a.agent.call": ("agent",),
         }
         missing = [
-            name for name in required_args.get(command.normalized_kind, ())
+            name
+            for name in required_args.get(command.normalized_kind, ())
             if not args.get(name)
         ]
         if missing:
             return f"missing required args for {command.normalized_kind}: {', '.join(missing)}"
-        if command.normalized_kind == "test.run" and "args" in args and not isinstance(args["args"], list):
+        if (
+            command.normalized_kind == "test.run"
+            and "args" in args
+            and not isinstance(args["args"], list)
+        ):
             return "test.run args must be a list"
-        if command.normalized_kind.startswith("git.") and "repo" in args and not isinstance(args["repo"], str):
+        if (
+            command.normalized_kind.startswith("git.")
+            and "repo" in args
+            and not isinstance(args["repo"], str)
+        ):
             return "git repo must be a string path"
         return None
 

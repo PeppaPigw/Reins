@@ -70,8 +70,8 @@ async def test_turn_limit_enforced(tmp_path):
     spec = SubagentSpec(objective="loop task", parent_run_id="parent-4", max_turns=3)
     handle = await mgr.spawn(spec)
 
-    assert await mgr.report_turn(handle.handle_id) is True   # turn 1
-    assert await mgr.report_turn(handle.handle_id) is True   # turn 2
+    assert await mgr.report_turn(handle.handle_id) is True  # turn 1
+    assert await mgr.report_turn(handle.handle_id) is True  # turn 2
     assert await mgr.report_turn(handle.handle_id) is False  # turn 3 → abort
     assert mgr.active_count == 0
     assert mgr.history[-1].status == SubagentStatus.aborted
@@ -93,8 +93,10 @@ async def test_spawn_emits_correlation_event(tmp_path):
     """Spawning a subagent should emit a correlated event on the parent journal."""
     journal = EventJournal(tmp_path / "journal.jsonl")
     mgr = SubagentManager(
-        journal, SnapshotStore(tmp_path / "s"),
-        CheckpointStore(tmp_path / "c"), PolicyEngine(),
+        journal,
+        SnapshotStore(tmp_path / "s"),
+        CheckpointStore(tmp_path / "c"),
+        PolicyEngine(),
     )
     spec = SubagentSpec(objective="test correlation", parent_run_id="parent-6")
     handle = await mgr.spawn(spec)

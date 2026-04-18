@@ -19,7 +19,11 @@ from enum import Enum
 
 import ulid
 
-from reins.execution.mcp.transport import JsonRpcRequest, JsonRpcTransport, create_transport
+from reins.execution.mcp.transport import (
+    JsonRpcRequest,
+    JsonRpcTransport,
+    create_transport,
+)
 
 
 class McpCostClass(str, Enum):
@@ -400,14 +404,16 @@ class McpSessionManager:
         If auto_reconnect is True, will attempt to reconnect once on connection errors.
         """
         call_id = str(ulid.new())
-        self._call_log.append({
-            "call_id": call_id,
-            "server_id": server_id,
-            "tool_name": tool_name,
-            "args": args,
-            "run_id": run_id,
-            "ts": datetime.now(UTC).isoformat(),
-        })
+        self._call_log.append(
+            {
+                "call_id": call_id,
+                "server_id": server_id,
+                "tool_name": tool_name,
+                "args": args,
+                "run_id": run_id,
+                "ts": datetime.now(UTC).isoformat(),
+            }
+        )
 
         # Get session and transport
         session = self._sessions.get(server_id)
@@ -458,7 +464,11 @@ class McpSessionManager:
             # Convert JSON-RPC response to our format
             if response.is_error():
                 # Check if it's a connection error and try to reconnect
-                error_code = response.error.get("code") if isinstance(response.error, dict) else None
+                error_code = (
+                    response.error.get("code")
+                    if isinstance(response.error, dict)
+                    else None
+                )
                 if auto_reconnect and error_code == -32000:  # Transport error
                     reconnected = await self.reconnect(server_id)
                     if reconnected:

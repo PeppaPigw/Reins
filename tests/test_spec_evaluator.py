@@ -9,10 +9,12 @@ from reins.evaluation.evaluators.spec import SpecEvaluator
 async def test_spec_evaluator_passes_on_valid_codebase():
     """Run spec evaluator against the live Reins codebase."""
     evaluator = SpecEvaluator()
-    result = await evaluator.evaluate({
-        "cwd": ".",
-        "run_id": "spec-test-1",
-    })
+    result = await evaluator.evaluate(
+        {
+            "cwd": ".",
+            "run_id": "spec-test-1",
+        }
+    )
     assert result.passed, f"Spec violations: {result.details}"
     assert result.evaluator_kind == "spec"
     assert result.score == 1.0
@@ -22,10 +24,12 @@ async def test_spec_evaluator_passes_on_valid_codebase():
 async def test_spec_evaluator_detects_missing_modules(tmp_path):
     """Spec evaluator should fail when required modules are absent."""
     evaluator = SpecEvaluator()
-    result = await evaluator.evaluate({
-        "cwd": str(tmp_path),
-        "run_id": "spec-test-2",
-    })
+    result = await evaluator.evaluate(
+        {
+            "cwd": str(tmp_path),
+            "run_id": "spec-test-2",
+        }
+    )
     assert not result.passed
     assert "missing required module" in result.details
 
@@ -52,9 +56,11 @@ async def test_spec_evaluator_detects_impure_reducer(tmp_path):
     state.touch()
 
     evaluator = SpecEvaluator()
-    result = await evaluator.evaluate({
-        "cwd": str(tmp_path),
-        "run_id": "spec-test-3",
-    })
+    result = await evaluator.evaluate(
+        {
+            "cwd": str(tmp_path),
+            "run_id": "spec-test-3",
+        }
+    )
     assert not result.passed
     assert "reducer imports I/O module" in result.details

@@ -20,7 +20,11 @@ class SandboxedShellAdapter(Adapter):
     async def open(self, spec: dict) -> Handle:
         cwd = str(Path(spec.get("cwd", ".")).resolve())
         env = dict(spec.get("env", {}))
-        handle = Handle(adapter_kind="shell", adapter_id=self.adapter_id, metadata={"cwd": cwd, "sandboxed": True})
+        handle = Handle(
+            adapter_kind="shell",
+            adapter_id=self.adapter_id,
+            metadata={"cwd": cwd, "sandboxed": True},
+        )
         self._sessions[handle.handle_id] = {"cwd": cwd, "env": env, "history": []}
         return handle
 
@@ -64,7 +68,14 @@ class SandboxedShellAdapter(Adapter):
         # Add command-specific env
         env.update(command_env)
         # Remove network-related variables
-        for key in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "no_proxy", "NO_PROXY"]:
+        for key in [
+            "http_proxy",
+            "https_proxy",
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "no_proxy",
+            "NO_PROXY",
+        ]:
             env.pop(key, None)
         return env
 
@@ -105,7 +116,11 @@ class SandboxedShellAdapter(Adapter):
             adapter_id=self.adapter_id,
             metadata={"cwd": session["cwd"], "sandboxed": True},
         )
-        self._sessions[new_handle.handle_id] = {"cwd": session["cwd"], "env": session["env"], "history": []}
+        self._sessions[new_handle.handle_id] = {
+            "cwd": session["cwd"],
+            "env": session["env"],
+            "history": [],
+        }
         self._sessions.pop(handle.handle_id, None)
         return new_handle
 
@@ -126,7 +141,11 @@ class NetworkShellAdapter(Adapter):
     async def open(self, spec: dict) -> Handle:
         cwd = str(Path(spec.get("cwd", ".")).resolve())
         env = dict(spec.get("env", {}))
-        handle = Handle(adapter_kind="shell", adapter_id=self.adapter_id, metadata={"cwd": cwd, "network": True})
+        handle = Handle(
+            adapter_kind="shell",
+            adapter_id=self.adapter_id,
+            metadata={"cwd": cwd, "network": True},
+        )
         self._sessions[handle.handle_id] = {"cwd": cwd, "env": env, "history": []}
         return handle
 
@@ -190,7 +209,11 @@ class NetworkShellAdapter(Adapter):
             adapter_id=self.adapter_id,
             metadata={"cwd": session["cwd"], "network": True},
         )
-        self._sessions[new_handle.handle_id] = {"cwd": session["cwd"], "env": session["env"], "history": []}
+        self._sessions[new_handle.handle_id] = {
+            "cwd": session["cwd"],
+            "env": session["env"],
+            "history": [],
+        }
         self._sessions.pop(handle.handle_id, None)
         return new_handle
 

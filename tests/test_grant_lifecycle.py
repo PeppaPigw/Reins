@@ -25,8 +25,13 @@ def _make_orchestrator(tmp_path: Path) -> RunOrchestrator:
     dispatcher = ExecutionDispatcher()
     approval_ledger = ApprovalLedger(tmp_path / "approvals")
     return RunOrchestrator(
-        journal, snapshots, checkpoints, policy, context,
-        approval_ledger=approval_ledger, dispatcher=dispatcher
+        journal,
+        snapshots,
+        checkpoints,
+        policy,
+        context,
+        approval_ledger=approval_ledger,
+        dispatcher=dispatcher,
     )
 
 
@@ -181,6 +186,7 @@ async def test_grant_lifecycle_expiration_and_reauth(tmp_path):
     # Manually expire the grant by modifying issued_at
     grant = orch.state.active_grants[0]
     from dataclasses import replace
+
     expired_grant = replace(grant, issued_at=time.time() - 3600, ttl_seconds=60)
     orch._state = replace(orch.state, active_grants=[expired_grant])
 

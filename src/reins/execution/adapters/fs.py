@@ -15,7 +15,9 @@ class FilesystemAdapter(Adapter):
     async def open(self, spec: dict) -> Handle:
         root = Path(spec.get("root", ".")).resolve()
         root.mkdir(parents=True, exist_ok=True)
-        handle = Handle(adapter_kind="fs", adapter_id=self.adapter_id, metadata={"root": str(root)})
+        handle = Handle(
+            adapter_kind="fs", adapter_id=self.adapter_id, metadata={"root": str(root)}
+        )
         self._roots[handle.handle_id] = root
         return handle
 
@@ -31,25 +33,42 @@ class FilesystemAdapter(Adapter):
                 "",
                 f"path escape attempt: {rel_path} resolves outside workspace",
                 1,
-                effect_descriptor={"op": op, "path": rel_path, "error": "path_escape"}
+                effect_descriptor={"op": op, "path": rel_path, "error": "path_escape"},
             )
 
         if op == "read":
-            return Observation(target.read_text(), "", 0, effect_descriptor={"op": op, "path": str(target)})
+            return Observation(
+                target.read_text(),
+                "",
+                0,
+                effect_descriptor={"op": op, "path": str(target)},
+            )
         if op == "write":
             target.parent.mkdir(parents=True, exist_ok=True)
             content = command.get("content", "")
             target.write_text(content)
-            return Observation(str(len(content)), "", 0, effect_descriptor={"op": op, "path": str(target)})
+            return Observation(
+                str(len(content)),
+                "",
+                0,
+                effect_descriptor={"op": op, "path": str(target)},
+            )
         if op == "list":
             entries = sorted(path.name for path in target.iterdir())
-            return Observation("\n".join(entries), "", 0, effect_descriptor={"op": op, "path": str(target)})
+            return Observation(
+                "\n".join(entries),
+                "",
+                0,
+                effect_descriptor={"op": op, "path": str(target)},
+            )
         if op == "delete":
             if target.is_dir():
                 shutil.rmtree(target)
             elif target.exists():
                 target.unlink()
-            return Observation(str(target), "", 0, effect_descriptor={"op": op, "path": str(target)})
+            return Observation(
+                str(target), "", 0, effect_descriptor={"op": op, "path": str(target)}
+            )
         if op == "move":
             dest_rel = command["dest"]
             destination = (root / dest_rel).resolve()
@@ -58,14 +77,33 @@ class FilesystemAdapter(Adapter):
                     "",
                     f"path escape attempt: {dest_rel} resolves outside workspace",
                     1,
-                    effect_descriptor={"op": op, "dest": dest_rel, "error": "path_escape"}
+                    effect_descriptor={
+                        "op": op,
+                        "dest": dest_rel,
+                        "error": "path_escape",
+                    },
                 )
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(target), str(destination))
-            return Observation(str(destination), "", 0, effect_descriptor={"op": op, "path": str(target)})
+            return Observation(
+                str(destination),
+                "",
+                0,
+                effect_descriptor={"op": op, "path": str(target)},
+            )
         if op == "exists":
-            return Observation(str(target.exists()).lower(), "", 0, effect_descriptor={"op": op, "path": str(target)})
-        return Observation("", f"unsupported op: {op}", 1, effect_descriptor={"op": op, "path": str(target)})
+            return Observation(
+                str(target.exists()).lower(),
+                "",
+                0,
+                effect_descriptor={"op": op, "path": str(target)},
+            )
+        return Observation(
+            "",
+            f"unsupported op: {op}",
+            1,
+            effect_descriptor={"op": op, "path": str(target)},
+        )
 
     async def snapshot(self, handle: Handle) -> str:
         root = self._roots[handle.handle_id]
@@ -95,7 +133,9 @@ class FilesystemAdapter(Adapter):
         return handle
 
     async def reset(self, handle: Handle) -> Handle:
-        new_handle = Handle(adapter_kind="fs", adapter_id=self.adapter_id, metadata=handle.metadata)
+        new_handle = Handle(
+            adapter_kind="fs", adapter_id=self.adapter_id, metadata=handle.metadata
+        )
         self._roots[new_handle.handle_id] = self._roots[handle.handle_id]
         self._roots.pop(handle.handle_id, None)
         return new_handle

@@ -60,6 +60,7 @@ def skill_registry(tmp_path):
     ]
 
     import json
+
     with open(registry_file, "w") as f:
         for skill in skills:
             f.write(json.dumps(skill.__dict__) + "\n")
@@ -313,9 +314,7 @@ async def test_capability_enforcement_with_trust_tiers(skill_registry):
 
     for descriptor in all_results:
         wrapper = SkillCapabilityWrapper(descriptor)
-        _ = await resolver.get_trust_classification_async(
-            descriptor.skill_id
-        )
+        _ = await resolver.get_trust_classification_async(descriptor.skill_id)
 
         # Verify capabilities are enforced regardless of trust tier
         for capability in descriptor.allowed_capabilities:

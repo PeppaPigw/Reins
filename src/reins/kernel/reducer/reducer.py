@@ -57,7 +57,9 @@ def reduce(state: RunState, event: EventEnvelope) -> RunState:
             open_handles.append(handle)
         return replace(state, open_handles=open_handles)
     if event.type == "eval.completed":
-        if not event.payload.get("passed", False) and event.payload.get("failure_class"):
+        if not event.payload.get("passed", False) and event.payload.get(
+            "failure_class"
+        ):
             failure = FailureClass(event.payload["failure_class"])
             return replace(state, last_failure_class=failure, repairing_command_id=None)
         return replace(state)
@@ -105,7 +107,9 @@ def reduce(state: RunState, event: EventEnvelope) -> RunState:
         )
     if event.type == "approval.requested":
         pending.append(event.payload["approval_id"])
-        return replace(state, pending_approvals=pending, status=RunStatus.waiting_approval)
+        return replace(
+            state, pending_approvals=pending, status=RunStatus.waiting_approval
+        )
     if event.type == "approval.resolved":
         approval_id = event.payload["approval_id"]
         pending = [item for item in pending if item != approval_id]
@@ -124,7 +128,9 @@ def reduce(state: RunState, event: EventEnvelope) -> RunState:
         return replace(
             state,
             status=RunStatus.resumable,
-            last_checkpoint_id=event.payload.get("checkpoint_id", state.last_checkpoint_id),
+            last_checkpoint_id=event.payload.get(
+                "checkpoint_id", state.last_checkpoint_id
+            ),
             snapshot_id=event.payload.get("snapshot_id", state.snapshot_id),
         )
     if event.type == "run.completed":

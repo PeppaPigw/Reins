@@ -5,6 +5,7 @@ configurable base directory (default: .reins_state/).
 
 For v1 this is in-process and file-backed.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -133,7 +134,9 @@ class RunRegistry:
     async def approve(self, run_id: str, request_id: str, granted_by: str = "human"):
         return await self._require(run_id).approve(request_id, granted_by)
 
-    async def reject(self, run_id: str, request_id: str, reason: str, rejected_by: str = "human"):
+    async def reject(
+        self, run_id: str, request_id: str, reason: str, rejected_by: str = "human"
+    ):
         return await self._require(run_id).reject(request_id, reason, rejected_by)
 
     async def abort(self, run_id: str, reason: str) -> RunState:

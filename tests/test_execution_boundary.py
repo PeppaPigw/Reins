@@ -29,7 +29,9 @@ def _make_orchestrator(tmp_path: Path) -> RunOrchestrator:
     policy = PolicyEngine()
     context = ContextCompiler()
     dispatcher = ExecutionDispatcher()
-    return RunOrchestrator(journal, snapshots, checkpoints, policy, context, dispatcher=dispatcher)
+    return RunOrchestrator(
+        journal, snapshots, checkpoints, policy, context, dispatcher=dispatcher
+    )
 
 
 @pytest.mark.asyncio
@@ -57,7 +59,9 @@ async def test_filesystem_path_escape_rejected(tmp_path):
 
     # Attempt 3: Move to outside
     (workspace / "data.txt").write_text("data")
-    result = await adapter.exec(handle, {"op": "move", "path": "data.txt", "dest": "../escaped.txt"})
+    result = await adapter.exec(
+        handle, {"op": "move", "path": "data.txt", "dest": "../escaped.txt"}
+    )
     assert result.exit_code != 0
     assert "path escape" in result.stderr
 
@@ -68,14 +72,16 @@ async def test_filesystem_path_escape_rejected(tmp_path):
 async def test_sandboxed_shell_removes_network_env(tmp_path):
     """Sandboxed shell must strip network-related environment variables."""
     adapter = SandboxedShellAdapter()
-    handle = await adapter.open({
-        "cwd": str(tmp_path),
-        "env": {
-            "http_proxy": "http://proxy:8080",
-            "HTTPS_PROXY": "https://proxy:8443",
-            "CUSTOM_VAR": "keep_this",
+    handle = await adapter.open(
+        {
+            "cwd": str(tmp_path),
+            "env": {
+                "http_proxy": "http://proxy:8080",
+                "HTTPS_PROXY": "https://proxy:8443",
+                "CUSTOM_VAR": "keep_this",
+            },
         }
-    })
+    )
 
     # Execute command that prints environment
     result = await adapter.exec(handle, {"cmd": "env"})
@@ -98,13 +104,15 @@ async def test_sandboxed_shell_removes_network_env(tmp_path):
 async def test_network_shell_preserves_env(tmp_path):
     """Network shell must preserve all environment variables."""
     adapter = NetworkShellAdapter()
-    handle = await adapter.open({
-        "cwd": str(tmp_path),
-        "env": {
-            "http_proxy": "http://proxy:8080",
-            "CUSTOM_VAR": "value",
+    handle = await adapter.open(
+        {
+            "cwd": str(tmp_path),
+            "env": {
+                "http_proxy": "http://proxy:8080",
+                "CUSTOM_VAR": "value",
+            },
         }
-    })
+    )
 
     result = await adapter.exec(handle, {"cmd": "env"})
     assert result.exit_code == 0
@@ -185,7 +193,9 @@ async def test_dispatcher_required_for_execution(tmp_path):
     context = ContextCompiler()
 
     # Create orchestrator WITHOUT dispatcher
-    orch = RunOrchestrator(journal, snapshots, checkpoints, policy, context, dispatcher=None)
+    orch = RunOrchestrator(
+        journal, snapshots, checkpoints, policy, context, dispatcher=None
+    )
 
     await orch.intake(IntentEnvelope(run_id="test-no-dispatcher", objective="test"))
     await orch.route()
