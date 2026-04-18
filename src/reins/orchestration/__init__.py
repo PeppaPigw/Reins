@@ -34,3 +34,14 @@ except ModuleNotFoundError:
     SubagentManager = None  # type: ignore[misc,assignment]
 else:
     __all__.append("SubagentManager")
+
+try:
+    from reins.orchestration.mcp_session import (
+        OrchestrationMCPSession,
+        OrchestrationMCPSessionManager,
+    )
+except ModuleNotFoundError:
+    OrchestrationMCPSession = None  # type: ignore[misc,assignment]
+    OrchestrationMCPSessionManager = None  # type: ignore[misc,assignment]
+else:
+    __all__.extend(["OrchestrationMCPSession", "OrchestrationMCPSessionManager"])

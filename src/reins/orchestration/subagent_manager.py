@@ -17,7 +17,7 @@ import asyncio
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import TYPE_CHECKING, Any, AsyncIterator
 
 import ulid
 
@@ -28,6 +28,9 @@ from reins.kernel.event.builder import EventBuilder
 from reins.kernel.event.envelope import EventEnvelope
 from reins.orchestration.hooks import ContextInjectionHook
 from reins.orchestration.agent_registry import AgentRegistry
+
+if TYPE_CHECKING:
+    from reins.orchestration.mcp_session import OrchestrationMCPSessionManager
 
 
 @dataclass
@@ -40,6 +43,7 @@ class SubagentHandle:
     run_id: str
     worktree_state: WorktreeState | None
     context: dict[str, Any]
+    mcp_session_id: str | None = None
 
 
 @dataclass
@@ -71,6 +75,7 @@ class SubagentManager:
         worktree_manager: WorktreeManager,
         context_hook: ContextInjectionHook,
         agent_registry: AgentRegistry,
+        mcp_session_manager: OrchestrationMCPSessionManager | None = None,
     ):
         """Initialize subagent manager.
 
@@ -87,6 +92,7 @@ class SubagentManager:
         self.worktree_manager = worktree_manager
         self.context_hook = context_hook
         self.agent_registry = agent_registry
+        self.mcp_session_manager = mcp_session_manager
 
     async def create_subagent(
         self,
@@ -94,6 +100,7 @@ class SubagentManager:
         task_id: str,
         run_id: str,
         use_worktree: bool = True,
+        mcp_servers: list[dict[str, Any]] | None = None,
     ) -> SubagentHandle:
         """Create a new subagent with isolated environment.
 
@@ -116,6 +123,7 @@ class SubagentManager:
 
         # 2. Create isolated worktree if requested
         worktree_state = None
+        mcp_session_id = None
 
         if use_worktree:
             # Create worktree for agent
@@ -125,6 +133,24 @@ class SubagentManager:
                 branch_name=f"agent/{agent_type}/{task_id}",
                 base_branch=self._resolve_base_branch(),
             )
+
+        if mcp_servers:
+            if self.mcp_session_manager is None:
+                raise ValueError("mcp_servers provided but no MCP session manager is configured")
+            try:
+                mcp_session_id = await self.mcp_session_manager.create_session(
+                    agent_id=agent_id,
+                    task_id=task_id,
+                    run_id=run_id,
+                    servers=mcp_servers,
+                )
+            except Exception:
+                if worktree_state is not None:
+                    await self.worktree_manager.cleanup_agent_worktree(
+                        worktree_state.worktree_id,
+                        force=True,
+                    )
+                raise
 
         # 3. Register agent in registry
         await self.agent_registry.register_agent(
@@ -152,6 +178,7 @@ class SubagentManager:
                 "task_id": task_id,
                 "worktree_id": worktree_state.worktree_id if worktree_state else None,
                 "worktree_path": str(worktree_state.worktree_path) if worktree_state else None,
+                "mcp_session_id": mcp_session_id,
                 "context_size": len(str(context)),
             },
         )
@@ -163,6 +190,7 @@ class SubagentManager:
             run_id=run_id,
             worktree_state=worktree_state,
             context=context,
+            mcp_session_id=mcp_session_id,
         )
 
     async def inject_context(
@@ -290,6 +318,12 @@ class SubagentManager:
                     # Collect result from context hook
                     result_output = payload.get("output", {})
 
+                    if status != "completed" and handle.mcp_session_id and self.mcp_session_manager:
+                        await self.mcp_session_manager.close_session(
+                            handle.mcp_session_id,
+                            handle.run_id,
+                        )
+
                     if status == "completed":
                         await self.context_hook.after_subagent_complete(
                             agent_type=handle.agent_type,
@@ -334,6 +368,12 @@ class SubagentManager:
                 error=asyncio.TimeoutError(f"Agent timeout after {timeout_seconds}s"),
             )
 
+            if handle.mcp_session_id and self.mcp_session_manager:
+                await self.mcp_session_manager.close_session(
+                    handle.mcp_session_id,
+                    handle.run_id,
+                )
+
             raise
 
     async def cleanup(
@@ -354,6 +394,12 @@ class SubagentManager:
                 force=True,
             )
 
+        if handle.mcp_session_id and self.mcp_session_manager:
+            await self.mcp_session_manager.close_session(
+                handle.mcp_session_id,
+                handle.run_id,
+            )
+
         # 2. Remove agent from registry
         await self.agent_registry.cleanup_agent(
             agent_id=handle.agent_id,
@@ -369,6 +415,7 @@ class SubagentManager:
                 "agent_type": handle.agent_type,
                 "task_id": handle.task_id,
                 "worktree_removed": remove_worktree,
+                "mcp_session_id": handle.mcp_session_id,
             },
         )
 
@@ -403,6 +450,12 @@ class SubagentManager:
             error=error,
         )
 
+        if handle.mcp_session_id and self.mcp_session_manager:
+            await self.mcp_session_manager.close_session(
+                handle.mcp_session_id,
+                handle.run_id,
+            )
+
         # Emit failure event
         await self._event_builder.commit(
             run_id=handle.run_id,
@@ -414,6 +467,7 @@ class SubagentManager:
                 "error_type": type(error).__name__,
                 "error_message": str(error),
                 "will_retry": retry,
+                "mcp_session_id": handle.mcp_session_id,
             },
         )
 
