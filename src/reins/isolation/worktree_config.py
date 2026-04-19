@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import yaml
 
+from reins.config.types import WorktreeConfig as ProjectWorktreeConfig
 from reins.isolation.types import WorktreeConfig
 
 DEFAULT_WORKTREE_PATHS = (
@@ -32,11 +33,12 @@ class WorktreeTemplateConfig:
     @classmethod
     def default(cls, repo_root: Path) -> WorktreeTemplateConfig:
         """Return the default config when no YAML file exists."""
+        defaults = ProjectWorktreeConfig()
         return cls(
-            worktree_dir=(repo_root / "../reins-worktrees").resolve(),
-            copy=[".reins/.developer"],
-            post_create=[],
-            verify=[],
+            worktree_dir=(repo_root / defaults.worktree_dir).resolve(),
+            copy=list(defaults.copy),
+            post_create=list(defaults.post_create),
+            verify=list(defaults.verify),
             source_path=None,
         )
 
@@ -101,21 +103,13 @@ def load_worktree_config(
             f"unknown worktree config keys in {config_path}: {', '.join(unknown_keys)}"
         )
 
-    worktree_dir_raw = raw.get("worktree_dir", "../reins-worktrees")
-    if not isinstance(worktree_dir_raw, str) or not worktree_dir_raw.strip():
-        raise WorktreeConfigError(
-            f"worktree_dir must be a non-empty string in {config_path}"
-        )
-
+    defaults = ProjectWorktreeConfig()
+    parsed = _parse_project_worktree_config(raw, defaults=defaults, config_path=config_path)
     return WorktreeTemplateConfig(
-        worktree_dir=(repo_root / worktree_dir_raw).resolve(),
-        copy=_validate_string_list(raw.get("copy", [".reins/.developer"]), "copy", config_path),
-        post_create=_validate_string_list(
-            raw.get("post_create", []),
-            "post_create",
-            config_path,
-        ),
-        verify=_validate_string_list(raw.get("verify", []), "verify", config_path),
+        worktree_dir=(repo_root / parsed.worktree_dir).resolve(),
+        copy=list(parsed.copy),
+        post_create=list(parsed.post_create),
+        verify=list(parsed.verify),
         source_path=config_path,
     )
 
@@ -130,12 +124,14 @@ def save_worktree_config(
     repo_root = repo_root.resolve()
     target = (path or repo_root / ".reins" / "worktree.yaml").resolve()
     target.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "worktree_dir": _display_path(config.worktree_dir, repo_root),
-        "copy": list(config.copy),
-        "post_create": list(config.post_create),
-        "verify": list(config.verify),
-    }
+    payload = asdict(
+        ProjectWorktreeConfig(
+            worktree_dir=_display_path(config.worktree_dir, repo_root),
+            copy=list(config.copy),
+            post_create=list(config.post_create),
+            verify=list(config.verify),
+        )
+    )
     target.write_text(
         yaml.safe_dump(payload, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
@@ -169,6 +165,30 @@ def _validate_string_list(
                 f"{field_name} must contain only strings in {config_path}"
             )
     return list(value)
+
+
+def _parse_project_worktree_config(
+    raw: dict[object, object],
+    *,
+    defaults: ProjectWorktreeConfig,
+    config_path: Path,
+) -> ProjectWorktreeConfig:
+    worktree_dir = raw.get("worktree_dir", defaults.worktree_dir)
+    if not isinstance(worktree_dir, str) or not worktree_dir.strip():
+        raise WorktreeConfigError(
+            f"worktree_dir must be a non-empty string in {config_path}"
+        )
+
+    return ProjectWorktreeConfig(
+        worktree_dir=worktree_dir,
+        copy=_validate_string_list(raw.get("copy", defaults.copy), "copy", config_path),
+        post_create=_validate_string_list(
+            raw.get("post_create", defaults.post_create),
+            "post_create",
+            config_path,
+        ),
+        verify=_validate_string_list(raw.get("verify", defaults.verify), "verify", config_path),
+    )
 
 
 def _display_path(target: Path, repo_root: Path) -> str:

@@ -16,7 +16,7 @@ from typing import Any
 
 from reins.isolation.agent_registry import AgentRegistry
 from reins.isolation.types import MergeStrategy, WorktreeConfig, WorktreeState
-from reins.isolation.worktree_config import load_worktree_config
+from reins.isolation.worktree_config import WorktreeTemplateConfig, load_worktree_config
 from reins.kernel.event.envelope import EventEnvelope
 from reins.kernel.event.journal import EventJournal
 from reins.kernel.event.worktree_events import (
@@ -174,6 +174,7 @@ class WorktreeManager:
         cleanup_on_success: bool = True,
         cleanup_on_failure: bool = False,
         config_path: Path | None = None,
+        worktree_base_dir: Path | None = None,
         extra_copy_files: list[str] | None = None,
     ) -> WorktreeState:
         """Create an agent worktree using repo-level YAML defaults."""
@@ -181,6 +182,14 @@ class WorktreeManager:
             self._repo_root,
             path=config_path or self._worktree_config_path,
         )
+        if worktree_base_dir is not None:
+            template = WorktreeTemplateConfig(
+                worktree_dir=worktree_base_dir.resolve(),
+                copy=list(template.copy),
+                post_create=list(template.post_create),
+                verify=list(template.verify),
+                source_path=template.source_path,
+            )
         runtime_config = template.build_runtime_config(
             worktree_name=worktree_name or self._default_worktree_name(agent_id, task_id),
             branch_name=branch_name,
@@ -280,6 +289,7 @@ class WorktreeManager:
         force: bool = False,
         removed_by: str = "system",
         reason: str | None = None,
+        delete_branch: bool = False,
     ) -> None:
         """Remove a worktree and unregister its agent if tracked."""
         await self.remove_worktree(
@@ -287,6 +297,7 @@ class WorktreeManager:
             force=force,
             removed_by=removed_by,
             reason=reason,
+            delete_branch=delete_branch,
         )
 
     async def remove_worktree(
@@ -295,6 +306,7 @@ class WorktreeManager:
         force: bool = False,
         removed_by: str = "system",
         reason: str | None = None,
+        delete_branch: bool = False,
     ) -> None:
         """Remove a git worktree.
 
@@ -314,6 +326,8 @@ class WorktreeManager:
         try:
             # Remove git worktree
             await self._git_worktree_remove(state.worktree_path, force=force)
+            if delete_branch:
+                await self._git_branch_delete(state.branch_name, force=force)
 
             # Mark as inactive
             state.is_active = False
@@ -539,6 +553,11 @@ class WorktreeManager:
             cmd.append("--force")
 
         await self._run_command(" ".join(cmd), cwd=self._repo_root)
+
+    async def _git_branch_delete(self, branch: str, force: bool = False) -> None:
+        """Delete a git branch after the worktree has been removed."""
+        flag = "-D" if force else "-d"
+        await self._run_command(f"git branch {flag} {branch}", cwd=self._repo_root)
 
     async def _git_checkout(self, branch: str, cwd: Path) -> None:
         """Checkout a git branch."""

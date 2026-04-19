@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from reins.config.types import WorktreeConfig as ProjectWorktreeConfig
 from reins.isolation.worktree_config import (
     WorktreeConfigError,
     WorktreeTemplateConfig,
@@ -99,3 +100,16 @@ def test_save_worktree_config_round_trips(tmp_path: Path) -> None:
     assert loaded.copy == config.copy
     assert loaded.post_create == config.post_create
     assert loaded.verify == config.verify
+
+
+def test_default_worktree_config_matches_project_schema(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+
+    defaults = load_worktree_config(repo_root)
+    shared_defaults = ProjectWorktreeConfig()
+
+    assert defaults.worktree_dir == (repo_root / shared_defaults.worktree_dir).resolve()
+    assert defaults.copy == shared_defaults.copy
+    assert defaults.post_create == shared_defaults.post_create
+    assert defaults.verify == shared_defaults.verify

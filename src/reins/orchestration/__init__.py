@@ -45,3 +45,33 @@ except ModuleNotFoundError:
     OrchestrationMCPSessionManager = None  # type: ignore[misc,assignment]
 else:
     __all__.extend(["OrchestrationMCPSession", "OrchestrationMCPSessionManager"])
+
+try:
+    from reins.orchestration.pipeline import Pipeline, PipelineStage, StageType
+    from reins.orchestration.types import PipelineResult, PipelineStatus, StageResult, StageStatus
+    from reins.orchestration.coordinator import PipelineCoordinator
+    from reins.orchestration.workflow import WorkflowExecutor
+except ModuleNotFoundError:
+    Pipeline = None  # type: ignore[misc,assignment]
+    PipelineCoordinator = None  # type: ignore[misc,assignment]
+    PipelineResult = None  # type: ignore[misc,assignment]
+    PipelineStage = None  # type: ignore[misc,assignment]
+    PipelineStatus = None  # type: ignore[misc,assignment]
+    StageResult = None  # type: ignore[misc,assignment]
+    StageStatus = None  # type: ignore[misc,assignment]
+    StageType = None  # type: ignore[misc,assignment]
+    WorkflowExecutor = None  # type: ignore[misc,assignment]
+else:
+    __all__.extend(
+        [
+            "Pipeline",
+            "PipelineCoordinator",
+            "PipelineResult",
+            "PipelineStage",
+            "PipelineStatus",
+            "StageResult",
+            "StageStatus",
+            "StageType",
+            "WorkflowExecutor",
+        ]
+    )

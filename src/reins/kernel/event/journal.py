@@ -55,7 +55,8 @@ class EventJournal:
             next_seq = self._seq_cache.get(event.run_id)
             if next_seq is None:
                 next_seq = await self.get_seq(event.run_id)
-            stored = replace(event, seq=next_seq + 1)
+            enriched = self._enrich_event(event)
+            stored = replace(enriched, seq=next_seq + 1)
             line = json.dumps(event_to_dict(stored), sort_keys=True) + "\n"
 
             run_path = self._get_run_path(event.run_id)
@@ -67,6 +68,58 @@ class EventJournal:
                 await asyncio.to_thread(os.fsync, handle.fileno())
             self._seq_cache[event.run_id] = stored.seq
             return stored
+
+    def _enrich_event(self, event: EventEnvelope) -> EventEnvelope:
+        developer = event.developer or self._load_current_developer()
+        session_id = event.session_id or self._load_current_session_id(developer)
+        task_id = event.task_id or self._extract_task_id(event.payload)
+        if developer == event.developer and session_id == event.session_id and task_id == event.task_id:
+            return event
+        return replace(event, developer=developer, session_id=session_id, task_id=task_id)
+
+    def _extract_task_id(self, payload: dict[str, object]) -> str | None:
+        task_id = payload.get("task_id")
+        if isinstance(task_id, str):
+            return task_id
+        return None
+
+    def _load_current_developer(self) -> str | None:
+        reins_root = self._find_reins_root()
+        if reins_root is None:
+            return None
+
+        developer_path = reins_root / ".developer"
+        if not developer_path.exists():
+            return None
+
+        content = developer_path.read_text(encoding="utf-8").strip()
+        if not content:
+            return None
+
+        for line in content.splitlines():
+            if line.startswith("name="):
+                return line.split("=", 1)[1].strip() or None
+        return content.splitlines()[0].strip() or None
+
+    def _load_current_session_id(self, developer: str | None) -> str | None:
+        if not developer:
+            return None
+
+        reins_root = self._find_reins_root()
+        if reins_root is None:
+            return None
+
+        session_path = reins_root / "workspace" / developer / ".current-session"
+        if not session_path.exists():
+            return None
+        return session_path.read_text(encoding="utf-8").strip() or None
+
+    def _find_reins_root(self) -> Path | None:
+        start = self.path if self._is_directory else self.path.parent
+        for candidate in (start, *start.parents):
+            if candidate.name == ".reins":
+                return candidate
+        return None
 
     async def read_from(
         self, run_id: str, from_seq: int = 0

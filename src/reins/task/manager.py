@@ -7,8 +7,11 @@ It emits events to the journal and queries the projection for reads.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
+from reins.config.hooks import HookCommandResult, HookExecutor
+from reins.config.loader import ConfigLoader
 from reins.kernel.event.envelope import EventEnvelope
 from reins.kernel.event.journal import EventJournal
 from reins.kernel.event.task_events import (
@@ -35,10 +38,15 @@ class TaskManager:
         journal: EventJournal,
         projection: TaskContextProjection,
         run_id: str,
+        repo_root: Path | None = None,
     ) -> None:
         self._journal = journal
         self._projection = projection
         self._run_id = run_id
+        self._hook_executor: HookExecutor | None = None
+        if repo_root is not None:
+            config = ConfigLoader(repo_root / ".reins").load()
+            self._hook_executor = HookExecutor(repo_root, config)
 
     async def create_task(
         self,
@@ -121,6 +129,12 @@ class TaskManager:
 
         return task_id
 
+    def execute_after_create(self, task_id: str) -> list[HookCommandResult]:
+        """Execute configured hooks after task creation."""
+        if self._hook_executor is None:
+            return []
+        return self._hook_executor.execute_after_create(task_id)
+
     async def start_task(self, task_id: str, assignee: str) -> None:
         """Start a task (transition from pending to in_progress).
 
@@ -159,6 +173,12 @@ class TaskManager:
 
         # Apply to projection
         self._projection.apply_event(event)
+
+    def execute_after_start(self, task_id: str) -> list[HookCommandResult]:
+        """Execute configured hooks after starting a task."""
+        if self._hook_executor is None:
+            return []
+        return self._hook_executor.execute_after_start(task_id)
 
     async def complete_task(
         self,
@@ -246,6 +266,12 @@ class TaskManager:
 
         # Apply to projection
         self._projection.apply_event(event)
+
+    def execute_after_archive(self, task_id: str) -> list[HookCommandResult]:
+        """Execute configured hooks after archiving a task."""
+        if self._hook_executor is None:
+            return []
+        return self._hook_executor.execute_after_archive(task_id)
 
     async def update_task(
         self,

@@ -108,6 +108,10 @@ def _resolve_package(
     if package:
         return package
 
+    config_default = utils.load_config(repo_root).default_package
+    if config_default:
+        return config_default
+
     detected_packages = detector.detect_packages(repo_root)
     if len(detected_packages) == 1:
         return detected_packages[0]

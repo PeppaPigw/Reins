@@ -25,7 +25,12 @@ app = typer.Typer(
 
 def _manager(repo_root: Path, run_id: str) -> tuple[TaskManager, TaskExporter]:
     projection = utils.rebuild_task_projection(repo_root)
-    manager = TaskManager(utils.get_journal(repo_root), projection, run_id=run_id)
+    manager = TaskManager(
+        utils.get_journal(repo_root),
+        projection,
+        run_id=run_id,
+        repo_root=repo_root,
+    )
     exporter = TaskExporter(projection, repo_root / ".reins" / "tasks")
     return manager, exporter
 
@@ -56,12 +61,14 @@ def create_command(
             raise utils.CLIError("Priority must be one of: P0, P1, P2, P3")
 
         manager, exporter = _manager(repo_root, run_id)
+        config = utils.load_config(repo_root)
         identity = utils.read_developer_identity(repo_root)
         created_by = identity["name"] if identity else "cli"
         final_assignee = assignee or created_by or "unassigned"
         metadata: dict[str, Any] = {}
-        if package:
-            metadata["package"] = package
+        resolved_package = package or config.default_package
+        if resolved_package:
+            metadata["package"] = resolved_package
 
         task_id = asyncio.run(
             manager.create_task(
@@ -78,6 +85,7 @@ def create_command(
             )
         )
         exporter.export_task(task_id)
+        manager.execute_after_create(task_id)
 
         utils.console.print(f"[green]Created task[/green] [bold]{task_id}[/bold].")
     except Exception as exc:  # pragma: no cover - exercised via CLI tests
@@ -130,6 +138,7 @@ def show_command(task_id: str = typer.Argument(..., help="Task ID.")) -> None:
     task = projection.get_task(task_id)
     if task is None:
         utils.exit_with_error(f"Task not found: {task_id}")
+        return
 
     utils.console.print(f"[bold]{task.title}[/bold] ({task.task_id})")
     utils.console.print(f"Status: {task.status.value}")
@@ -165,11 +174,13 @@ def start_command(
     repo_root = utils.find_repo_root()
     run_id = utils.make_run_id("task")
     try:
-        manager, _ = _manager(repo_root, run_id)
+        manager, exporter = _manager(repo_root, run_id)
         identity = utils.read_developer_identity(repo_root)
         final_assignee = assignee or (identity["name"] if identity else "cli")
         asyncio.run(manager.start_task(task_id, assignee=final_assignee))
+        exporter.export_task(task_id)
         utils.set_current_task_pointer(repo_root, task_id)
+        manager.execute_after_start(task_id)
         utils.console.print(f"[green]Started task[/green] [bold]{task_id}[/bold].")
     except Exception as exc:  # pragma: no cover - exercised via CLI tests
         asyncio.run(utils.emit_cli_error(repo_root, run_id, "task.start", exc, {"task_id": task_id}))
@@ -228,6 +239,7 @@ def archive_command(
         exporter.export_task(task_id)
         if utils.get_current_task_id(repo_root) == task_id:
             utils.set_current_task_pointer(repo_root, None)
+        manager.execute_after_archive(task_id)
         utils.console.print(f"[green]Archived task[/green] [bold]{task_id}[/bold].")
     except Exception as exc:  # pragma: no cover - exercised via CLI tests
         asyncio.run(utils.emit_cli_error(repo_root, run_id, "task.archive", exc, {"task_id": task_id}))

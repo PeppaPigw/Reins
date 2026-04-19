@@ -580,9 +580,6 @@ class ContextCompiler:
                 )
             )
 
-        if matched_standard_layer:
-            return sources
-
         if (package_root / "index.md").exists():
             sources.append(
                 self._make_spec_source(
@@ -593,6 +590,9 @@ class ContextCompiler:
                     package_specific=True,
                 )
             )
+
+        if matched_standard_layer:
+            return sources
 
         custom_children = sorted(
             child for child in package_root.iterdir() if child.is_dir() and not child.name.startswith(".")

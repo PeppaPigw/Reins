@@ -10,10 +10,10 @@ from typing import Any, Iterable
 
 import typer
 import ulid
-import yaml
 from rich.console import Console
-from tabulate import tabulate
+from tabulate import tabulate  # type: ignore[import-untyped]
 
+from reins.config import ConfigLoader, ReinsConfig
 from reins.context.spec_projection import ContextSpecProjection
 from reins.isolation.agent_registry import AgentRegistry
 from reins.isolation.types import WorktreeConfig, WorktreeState
@@ -74,15 +74,12 @@ def find_repo_root_for_init() -> Path:
     return Path(result.stdout.strip()).resolve()
 
 
-def load_config(repo_root: Path) -> dict:
-    """Load .reins/config.yaml if exists."""
-    config_path = repo_root / ".reins" / "config.yaml"
-    if not config_path.exists():
-        return {}
-    raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
-    if not isinstance(raw, dict):
-        raise CLIError(f"Invalid config file: {config_path}")
-    return raw
+def load_config(repo_root: Path) -> ReinsConfig:
+    """Load typed `.reins/config.yaml` with defaults."""
+    try:
+        return ConfigLoader(repo_root / ".reins").load()
+    except ValueError as exc:
+        raise CLIError(str(exc)) from exc
 
 
 def format_timestamp(dt: datetime) -> str:

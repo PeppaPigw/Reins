@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 from reins.task.context_jsonl import ContextMessage, ContextJSONL
 from reins.task.metadata import TaskMetadata, TaskStatus
-from reins.task.projection import TaskContext, TaskContextProjection
+from reins.task.projection import TaskContextProjection
 
 
 class TaskExporter:
@@ -115,6 +114,8 @@ class TaskExporter:
             "parent_task_id": task.parent_task_id,
             "metadata": task.metadata,
         }
+        if "assigned_to" in task.metadata:
+            task_json["assigned_to"] = task.metadata["assigned_to"]
 
         task_json_path = task_dir / "task.json"
         with open(task_json_path, "w", encoding="utf-8") as f:

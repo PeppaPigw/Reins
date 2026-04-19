@@ -17,6 +17,9 @@ class EventEnvelope:
     actor: Actor
     type: str
     payload: dict[str, Any]
+    developer: str | None = None
+    session_id: str | None = None
+    task_id: str | None = None
     seq: int = 0
     command_id: str | None = None
     causation_id: str | None = None
@@ -51,6 +54,9 @@ def event_from_dict(data: dict[str, Any]) -> EventEnvelope:
         type=data["type"],
         schema_version=data["schema_version"],
         payload=data["payload"],
+        developer=data.get("developer"),
+        session_id=data.get("session_id"),
+        task_id=data.get("task_id"),
         causation_id=data.get("causation_id"),
         correlation_id=data.get("correlation_id"),
         trace_id=data["trace_id"],

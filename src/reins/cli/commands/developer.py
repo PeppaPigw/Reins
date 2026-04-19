@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
 
 import typer
 
 from reins.cli import utils
+from reins.workspace.manager import WorkspaceManager
 
 app = typer.Typer(
     help=(
@@ -15,23 +15,6 @@ app = typer.Typer(
         "  reins developer workspace-info\n"
     )
 )
-
-
-def _workspace_index_content(name: str) -> str:
-    return f"""# Workspace Index - {name}
-
-## Current Status
-
-- Active File: `journal-1.md`
-- Total Sessions: 0
-- Last Active: -
-
-## Active Documents
-
-| File | Lines | Status |
-|------|-------|--------|
-| `journal-1.md` | ~0 | Active |
-"""
 
 
 @app.command("init")
@@ -49,18 +32,12 @@ def init_command(name: str = typer.Argument(..., help="Developer name.")) -> Non
 
     utils.ensure_reins_layout(repo_root)
     dev_path = utils.write_developer_identity(repo_root, name)
-    ws_dir = utils.workspace_dir(repo_root, name)
-    ws_dir.mkdir(parents=True, exist_ok=True)
-    journal_file = ws_dir / "journal-1.md"
-    if not journal_file.exists():
-        today = datetime.now(UTC).strftime("%Y-%m-%d")
-        journal_file.write_text(
-            f"# Journal - {name} (Part 1)\n\n> Started: {today}\n\n---\n",
-            encoding="utf-8",
-        )
-    index_file = ws_dir / "index.md"
-    if not index_file.exists():
-        index_file.write_text(_workspace_index_content(name), encoding="utf-8")
+    manager = WorkspaceManager(
+        repo_root / ".reins",
+        journal=utils.get_journal(repo_root),
+        run_id=run_id,
+    )
+    ws_dir = manager.initialize_workspace(name)
 
     asyncio.run(
         utils.emit_cli_event(
