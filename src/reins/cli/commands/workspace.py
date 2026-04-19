@@ -64,7 +64,10 @@ def list_command() -> None:
 
 
 @app.command("stats")
-def stats_command(developer: str = typer.Argument(..., help="Developer name.")) -> None:
+def stats_command(
+    developer: str = typer.Argument(..., help="Developer name."),
+    detailed: bool = typer.Option(False, "--detailed", help="Show detailed statistics."),
+) -> None:
     """Show workspace statistics for a developer."""
     repo_root = utils.find_repo_root()
     manager = _manager(repo_root, utils.make_run_id("workspace"))
@@ -83,6 +86,24 @@ def stats_command(developer: str = typer.Argument(..., help="Developer name.")) 
         {"field": "total_lines", "value": str(stats.total_lines)},
         {"field": "archived_journal_files", "value": str(stats.archived_journal_files)},
     ]
+    if detailed:
+        rows.extend(
+            [
+                {
+                    "field": "first_session",
+                    "value": stats.first_session.isoformat() if stats.first_session else "-",
+                },
+                {"field": "active_task_count", "value": str(stats.active_task_count)},
+                {"field": "completed_tasks", "value": str(stats.completed_tasks)},
+                {"field": "files_changed", "value": str(stats.files_changed)},
+                {"field": "lines_added", "value": str(stats.lines_added)},
+                {"field": "lines_removed", "value": str(stats.lines_removed)},
+                {
+                    "field": "current_session_id",
+                    "value": stats.current_session_id or "-",
+                },
+            ]
+        )
     utils.console.print(utils.format_table(rows, ["field", "value"]))
 
     tasks = context.get_developer_tasks(developer)

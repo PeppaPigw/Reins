@@ -95,6 +95,23 @@ class DeveloperJournal:
     def update_index(self) -> None:
         """Rewrite `index.md` with statistics and recent sessions."""
         self.journal_dir.mkdir(parents=True, exist_ok=True)
+        from reins.workspace.stats import (
+            StatisticsCalculator,
+            load_workspace_stats,
+            write_workspace_stats,
+        )
+
+        previous_stats = load_workspace_stats(self.journal_dir, self.developer)
+        calculated_stats = StatisticsCalculator().calculate_stats(self.journal_dir)
+        if not calculated_stats.active_tasks and previous_stats.active_tasks:
+            from dataclasses import replace
+
+            calculated_stats = replace(
+                calculated_stats,
+                active_tasks=previous_stats.active_tasks,
+                active_task_count=len(previous_stats.active_tasks),
+            )
+        write_workspace_stats(self.journal_dir, calculated_stats)
         parsed_entries = self._get_parsed_entries()
         journal_stats = self._get_journal_file_stats()
         total_commits = sum(len(entry.entry.commits) for entry in parsed_entries)
@@ -147,6 +164,10 @@ class DeveloperJournal:
 
         lines.append("")
         (self.journal_dir / "index.md").write_text("\n".join(lines), encoding="utf-8")
+
+        from reins.workspace.index_generator import write_workspace_index
+
+        write_workspace_index(self.workspace_dir)
 
     def get_journal_file_stats(self) -> list[JournalFileStats]:
         """Return per-file statistics for active journal files."""

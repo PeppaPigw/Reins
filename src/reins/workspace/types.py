@@ -37,11 +37,17 @@ class WorkspaceStats:
     total_sessions: int = 0
     total_commits: int = 0
     last_active: datetime | None = None
+    first_session: datetime | None = None
     journal_files: int = 0
     active_tasks: list[str] = field(default_factory=list)
+    active_task_count: int = 0
+    completed_tasks: int = 0
     total_lines: int = 0
     archived_journal_files: int = 0
     current_session_id: str | None = None
+    files_changed: int = 0
+    lines_added: int = 0
+    lines_removed: int = 0
 
 
 @dataclass(frozen=True)

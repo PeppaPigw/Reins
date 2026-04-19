@@ -38,6 +38,8 @@ def test_initialize_workspace_creates_layout_and_stats(tmp_path: Path) -> None:
     stats = manager.get_workspace_stats("peppa")
     assert stats.developer == "peppa"
     assert stats.journal_files == 1
+    assert stats.active_task_count == 0
+    assert stats.completed_tasks == 0
     assert "peppa" in manager.list_workspaces()
 
 

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from datetime import UTC, datetime, time
 from pathlib import Path
 
 from reins.kernel.event.envelope import event_from_dict
 from reins.kernel.event.task_events import TASK_COMPLETED
 from reins.workspace.journal import DeveloperJournal
+from reins.workspace.stats import sum_git_numstat
 from reins.workspace.types import ActivityReport
 
 
@@ -73,33 +73,7 @@ class ActivityReporter:
         return count
 
     def _sum_numstat(self, commits: list[str]) -> tuple[int, int]:
-        if not commits:
-            return 0, 0
-
-        repo_root = self.reins_root.parent
-        added = 0
-        removed = 0
-        for commit in commits:
-            try:
-                result = subprocess.run(
-                    ["git", "show", "--numstat", "--format=", commit],
-                    cwd=repo_root,
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-            except (OSError, subprocess.CalledProcessError):
-                continue
-
-            for line in result.stdout.splitlines():
-                parts = line.split("\t")
-                if len(parts) < 2:
-                    continue
-                if parts[0].isdigit():
-                    added += int(parts[0])
-                if parts[1].isdigit():
-                    removed += int(parts[1])
-        return added, removed
+        return sum_git_numstat(self.reins_root.parent, commits)
 
     def _normalize_start(self, value: datetime) -> datetime:
         if value.tzinfo is None:

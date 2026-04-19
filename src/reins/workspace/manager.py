@@ -7,12 +7,9 @@ from pathlib import Path
 from reins.kernel.event.builder import EventBuilder
 from reins.kernel.event.journal import EventJournal
 from reins.kernel.event.workspace_events import WORKSPACE_CLEANED, WORKSPACE_INITIALIZED
+from reins.workspace.index_generator import write_workspace_index
 from reins.workspace.journal import DeveloperJournal
-from reins.workspace.stats import (
-    build_workspace_stats,
-    load_workspace_stats,
-    write_workspace_stats,
-)
+from reins.workspace.stats import StatisticsCalculator, write_workspace_stats
 from reins.workspace.types import WorkspaceStats
 
 
@@ -119,26 +116,17 @@ class WorkspaceManager:
             raise ValueError(f"Workspace not found for developer: {developer}")
         return self._refresh_workspace_stats(developer)
 
+    def _update_global_index(self) -> None:
+        """Refresh the workspace-wide index."""
+        write_workspace_index(self.workspace_root)
+
     def _refresh_workspace_stats(self, developer: str) -> WorkspaceStats:
         workspace_dir = self.workspace_root / developer
         developer_journal = DeveloperJournal(self.workspace_root, developer)
-        previous = load_workspace_stats(workspace_dir, developer)
-        current_session_path = workspace_dir / ".current-session"
-        current_session_id = None
-        if current_session_path.exists():
-            current_session_id = current_session_path.read_text(encoding="utf-8").strip() or None
-
-        archive_dir = workspace_dir / "archive"
-        archived_count = len(list(archive_dir.glob("journal-*.md"))) if archive_dir.exists() else 0
-        stats = build_workspace_stats(
-            developer,
-            developer_journal,
-            active_tasks=previous.active_tasks,
-            archived_journal_files=archived_count,
-            current_session_id=current_session_id,
-        )
+        stats = StatisticsCalculator().calculate_stats(workspace_dir)
         write_workspace_stats(workspace_dir, stats)
         developer_journal.update_index()
+        self._update_global_index()
         return stats
 
     def _commit_event(self, event_type: str, payload: dict[str, object]) -> None:
