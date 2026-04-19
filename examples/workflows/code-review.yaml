@@ -1,0 +1,70 @@
+name: code-review
+description: Multi-agent code review with security, quality, and performance analysis.
+metadata:
+  category: review
+
+stages:
+  - name: security-scan
+    type: check
+    agent_type: security-reviewer
+    model: gpt-5.4
+    prompt_template: |
+      Review the code changes for security vulnerabilities.
+
+      Check for:
+      1. SQL injection, XSS, CSRF, and unsafe deserialization
+      2. Authentication and authorization issues
+      3. Secrets, tokens, or unsafe configuration checked into the codebase
+
+      Write findings to security-report.md.
+    metadata:
+      output_file: security-report.md
+
+  - name: quality-check
+    type: check
+    agent_type: code-reviewer
+    model: gpt-5.4
+    prompt_template: |
+      Review code quality and maintainability.
+
+      Check for:
+      1. Code smells and unnecessary complexity
+      2. Missing tests or weak assertions
+      3. Regressions in readability or API clarity
+
+      Write findings to quality-report.md.
+    metadata:
+      output_file: quality-report.md
+
+  - name: performance-analysis
+    type: research
+    agent_type: analyst
+    model: gpt-5.4-mini
+    prompt_template: |
+      Analyze performance implications of the proposed change.
+
+      Focus on:
+      1. N+1 queries and repeated remote calls
+      2. Memory pressure and large-object churn
+      3. Inefficient loops or algorithmic regressions
+
+      Write findings to performance-report.md.
+    metadata:
+      output_file: performance-report.md
+
+  - name: summary
+    type: custom
+    agent_type: writer
+    model: gpt-5.4-mini
+    depends_on: [security-scan, quality-check, performance-analysis]
+    prompt_template: |
+      Synthesize the review outputs into a final summary.
+
+      Inputs:
+      - security-report.md
+      - quality-report.md
+      - performance-report.md
+
+      Produce review-summary.md with prioritized findings and a ship/no-ship recommendation.
+    metadata:
+      output_file: review-summary.md

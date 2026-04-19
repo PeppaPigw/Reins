@@ -30,6 +30,7 @@ class PipelineStage:
     type: StageType
     agent_type: str
     prompt_template: str
+    model: str | None = None
     depends_on: list[str] = field(default_factory=list)
     timeout_seconds: int = 3600
     retry_on_failure: bool = True
@@ -96,6 +97,14 @@ def load_pipeline_from_yaml(path: Path) -> Pipeline:
     )
 
 
+class PipelineParser:
+    """Compatibility wrapper for loading pipeline files."""
+
+    def parse_file(self, path: Path) -> Pipeline:
+        """Parse a pipeline definition from a YAML file."""
+        return load_pipeline_from_yaml(path)
+
+
 def validate_pipeline(pipeline: Pipeline) -> list[str]:
     """Validate pipeline structure and dependency relationships."""
     errors: list[str] = []
@@ -121,6 +130,8 @@ def validate_pipeline(pipeline: Pipeline) -> list[str]:
             errors.append(f"Stage {stage.name!r} must define a non-empty agent_type.")
         if not stage.prompt_template.strip():
             errors.append(f"Stage {stage.name!r} must define a prompt_template.")
+        if stage.model is not None and not stage.model.strip():
+            errors.append(f"Stage {stage.name!r} model must not be empty when provided.")
         if stage.timeout_seconds <= 0:
             errors.append(f"Stage {stage.name!r} timeout_seconds must be > 0.")
         if stage.max_retries < 0:
@@ -185,6 +196,10 @@ def _parse_stage(raw: Any, *, path: Path, index: int) -> PipelineStage:
     if not isinstance(max_retries, int):
         raise ValueError(f"'max_retries' for stage #{index} in {path} must be an integer.")
 
+    model = raw.get("model")
+    if model is not None and not isinstance(model, str):
+        raise ValueError(f"'model' for stage #{index} in {path} must be a string.")
+
     metadata = _optional_mapping(raw.get("metadata"), "metadata", path, index=index)
 
     return PipelineStage(
@@ -192,6 +207,7 @@ def _parse_stage(raw: Any, *, path: Path, index: int) -> PipelineStage:
         type=stage_type,
         agent_type=_require_str(raw, "agent_type", path, index=index),
         prompt_template=_require_str(raw, "prompt_template", path, index=index),
+        model=model,
         depends_on=list(depends_on),
         timeout_seconds=timeout_seconds,
         retry_on_failure=retry_on_failure,

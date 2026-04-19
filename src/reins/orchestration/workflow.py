@@ -53,10 +53,12 @@ class WorkflowExecutor:
         event_journal: EventJournal,
         *,
         repo_root: Path | None = None,
+        max_parallel_stages: int | None = None,
     ) -> None:
         self.orchestrator = orchestrator
         self.journal = event_journal
         self.repo_root = (repo_root or Path.cwd()).resolve()
+        self.max_parallel_stages = max_parallel_stages
         self._active_coordinators: dict[str, PipelineCoordinator] = {}
 
     async def run_pipeline(
@@ -67,6 +69,25 @@ class WorkflowExecutor:
     ) -> PipelineResult:
         """Run a named pipeline for a task."""
         pipeline = self._load_pipeline(pipeline_name)
+        return await self.run_pipeline_definition(pipeline, task_dir, variables)
+
+    async def run_pipeline_file(
+        self,
+        pipeline_path: Path,
+        task_dir: Path,
+        variables: dict[str, str] | None = None,
+    ) -> PipelineResult:
+        """Run a pipeline loaded from an explicit YAML file path."""
+        pipeline = load_pipeline_from_yaml(pipeline_path)
+        return await self.run_pipeline_definition(pipeline, task_dir, variables)
+
+    async def run_pipeline_definition(
+        self,
+        pipeline: Pipeline,
+        task_dir: Path,
+        variables: dict[str, str] | None = None,
+    ) -> PipelineResult:
+        """Run an in-memory pipeline definition for a task."""
         task_dir = task_dir.resolve()
         task_dir.mkdir(parents=True, exist_ok=True)
 
@@ -100,6 +121,7 @@ class WorkflowExecutor:
             pipeline_id=pipeline_id,
             variables=merged_variables,
             stage_runner=self._run_stage,
+            max_parallel_stages=self.max_parallel_stages,
         )
         self._active_coordinators[pipeline_id] = coordinator
 
@@ -181,6 +203,8 @@ class WorkflowExecutor:
                 "context_files": stage.context_files,
             },
         )
+        if stage.model:
+            handle.context["model"] = stage.model
         artifacts = [
             task_dir / relative_path
             for relative_path in stage.context_files
@@ -191,6 +215,7 @@ class WorkflowExecutor:
                 "agent_id": handle.agent_id,
                 "agent_type": handle.agent_type,
                 "stage_name": stage.name,
+                "model": stage.model,
                 "prompt": prompt,
             },
             ensure_ascii=False,

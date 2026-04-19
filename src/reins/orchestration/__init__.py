@@ -16,21 +16,21 @@ __all__ = [
 
 try:
     from reins.orchestration.agent_registry import AgentRegistry
-except ModuleNotFoundError:
+except ImportError:
     AgentRegistry = None  # type: ignore[misc,assignment]
 else:
     __all__.append("AgentRegistry")
 
 try:
     from reins.orchestration.hooks import ContextInjectionHook
-except ModuleNotFoundError:
+except ImportError:
     ContextInjectionHook = None  # type: ignore[misc,assignment]
 else:
     __all__.append("ContextInjectionHook")
 
 try:
     from reins.orchestration.subagent_manager import SubagentManager
-except ModuleNotFoundError:
+except ImportError:
     SubagentManager = None  # type: ignore[misc,assignment]
 else:
     __all__.append("SubagentManager")
@@ -40,7 +40,7 @@ try:
         OrchestrationMCPSession,
         OrchestrationMCPSessionManager,
     )
-except ModuleNotFoundError:
+except ImportError:
     OrchestrationMCPSession = None  # type: ignore[misc,assignment]
     OrchestrationMCPSessionManager = None  # type: ignore[misc,assignment]
 else:
@@ -51,7 +51,7 @@ try:
     from reins.orchestration.types import PipelineResult, PipelineStatus, StageResult, StageStatus
     from reins.orchestration.coordinator import PipelineCoordinator
     from reins.orchestration.workflow import WorkflowExecutor
-except ModuleNotFoundError:
+except ImportError:
     Pipeline = None  # type: ignore[misc,assignment]
     PipelineCoordinator = None  # type: ignore[misc,assignment]
     PipelineResult = None  # type: ignore[misc,assignment]

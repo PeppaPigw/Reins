@@ -1,0 +1,79 @@
+name: migration
+description: Technology migration workflow with inventory, mapping, parallel execution, and verification.
+metadata:
+  category: migration
+
+stages:
+  - name: inventory
+    type: research
+    agent_type: analyst
+    model: gpt-5.4-mini
+    prompt_template: |
+      Inventory the code that needs migration.
+
+      List:
+      1. Files and modules affected
+      2. Dependencies and integration points
+      3. Repeated patterns that can be migrated in batches
+
+      Write the result to inventory.md.
+    metadata:
+      output_file: inventory.md
+
+  - name: mapping
+    type: custom
+    agent_type: architect
+    model: gpt-5.4
+    depends_on: [inventory]
+    prompt_template: |
+      Map the current patterns to the target technology or framework.
+
+      Include:
+      1. Old-to-new pattern mapping
+      2. Compatibility notes
+      3. Risks and rollback points
+
+      Write the result to migration-mapping.md.
+    metadata:
+      output_file: migration-mapping.md
+
+  - name: migrate-batch-1
+    type: implement
+    agent_type: executor
+    model: gpt-5.4
+    depends_on: [mapping]
+    prompt_template: |
+      Migrate the first independent batch of code using the mapping guide.
+
+      Keep notes in migrate-batch-1.md.
+    metadata:
+      output_file: migrate-batch-1.md
+
+  - name: migrate-batch-2
+    type: implement
+    agent_type: executor
+    model: gpt-5.4
+    depends_on: [mapping]
+    prompt_template: |
+      Migrate the second independent batch of code using the mapping guide.
+
+      Keep notes in migrate-batch-2.md.
+    metadata:
+      output_file: migrate-batch-2.md
+
+  - name: verify
+    type: verify
+    agent_type: verifier
+    model: gpt-5.4-mini
+    depends_on: [migrate-batch-1, migrate-batch-2]
+    prompt_template: |
+      Verify the migration outcome across both migrated batches.
+
+      Confirm:
+      1. Behavior matches the previous implementation
+      2. No files were skipped accidentally
+      3. Rollback guidance is still valid if issues surface
+
+      Write the result to migration-verification.md.
+    metadata:
+      output_file: migration-verification.md

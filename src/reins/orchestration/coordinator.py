@@ -43,6 +43,7 @@ class PipelineCoordinator:
         stage_runner: StageRunner | None = None,
         sleep_fn: SleepFn | None = None,
         retry_backoff_seconds: float = 0.1,
+        max_parallel_stages: int | None = None,
     ) -> None:
         self.pipeline = pipeline
         self.task_dir = task_dir
@@ -52,6 +53,7 @@ class PipelineCoordinator:
         self.stage_runner = stage_runner or self._default_stage_runner
         self.sleep_fn = sleep_fn or asyncio.sleep
         self.retry_backoff_seconds = retry_backoff_seconds
+        self.max_parallel_stages = max_parallel_stages
 
         self.stage_results: dict[str, StageResult] = {}
         self.stage_status: dict[str, StageStatus] = {
@@ -68,6 +70,8 @@ class PipelineCoordinator:
         errors = validate_pipeline(self.pipeline)
         if errors:
             raise ValueError("; ".join(errors))
+        if self.max_parallel_stages is not None and self.max_parallel_stages <= 0:
+            raise ValueError("max_parallel_stages must be greater than zero when provided.")
 
         self._pipeline_started_at = time.monotonic()
         self._graph = self._build_dependency_graph()
@@ -315,6 +319,12 @@ class PipelineCoordinator:
         return result
 
     def _launch_ready_stages(self) -> None:
+        remaining_slots = None
+        if self.max_parallel_stages is not None:
+            remaining_slots = self.max_parallel_stages - len(self._active_tasks)
+            if remaining_slots <= 0:
+                return
+
         for stage in self.pipeline.stages:
             if stage.name in self._active_tasks:
                 continue
@@ -323,6 +333,10 @@ class PipelineCoordinator:
             if not self._dependencies_completed(stage):
                 continue
             self._active_tasks[stage.name] = asyncio.create_task(self._execute_stage(stage))
+            if remaining_slots is not None:
+                remaining_slots -= 1
+                if remaining_slots <= 0:
+                    return
 
     async def _skip_unrunnable_stages(self) -> None:
         for stage in self.pipeline.stages:

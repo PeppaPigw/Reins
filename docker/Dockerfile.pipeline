@@ -1,0 +1,16 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+COPY pyproject.toml README.md ./
+COPY src ./src
+COPY scripts ./scripts
+COPY .reins ./.reins
+
+RUN python -m pip install --no-cache-dir .
+
+ENTRYPOINT ["python3", "scripts/run_pipeline.py"]
+CMD [".reins/pipelines/standard.yaml", "--task-dir", ".reins/tasks/ci-test", "--output", ".reins/ci-output"]

@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
+from reins.orchestration.pipeline import Pipeline
+
 
 class StageStatus(str, Enum):
     """Lifecycle states for individual pipeline stages."""
@@ -52,3 +54,6 @@ class PipelineResult:
     success: bool
     pipeline_id: str | None = None
     metadata: dict[str, str] = field(default_factory=dict)
+
+
+PipelineConfig = Pipeline

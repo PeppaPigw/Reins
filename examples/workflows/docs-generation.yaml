@@ -1,0 +1,70 @@
+name: docs-generation
+description: Generate documentation artifacts from the codebase and existing task context.
+metadata:
+  category: documentation
+
+stages:
+  - name: api-docs
+    type: custom
+    agent_type: writer
+    model: gpt-5.4-mini
+    prompt_template: |
+      Generate API documentation from the code and task context.
+
+      Include:
+      1. Endpoints or entrypoints
+      2. Parameters and return shapes
+      3. Example invocations
+
+      Write the result to api-docs.md.
+    metadata:
+      output_file: api-docs.md
+
+  - name: architecture-docs
+    type: research
+    agent_type: architect
+    model: gpt-5.4
+    prompt_template: |
+      Document the system architecture.
+
+      Include:
+      1. Major components
+      2. Data flow and dependencies
+      3. Notable extension points and risk areas
+
+      Write the result to architecture.md.
+    metadata:
+      output_file: architecture.md
+
+  - name: user-guide
+    type: custom
+    agent_type: writer
+    model: gpt-5.4-mini
+    prompt_template: |
+      Write a user guide for the current feature set.
+
+      Include:
+      1. Getting started steps
+      2. Common tasks
+      3. Troubleshooting notes
+
+      Write the result to user-guide.md.
+    metadata:
+      output_file: user-guide.md
+
+  - name: index
+    type: verify
+    agent_type: writer
+    model: gpt-5.4-mini
+    depends_on: [api-docs, architecture-docs, user-guide]
+    prompt_template: |
+      Create a documentation index that links the generated artifacts.
+
+      Inputs:
+      - api-docs.md
+      - architecture.md
+      - user-guide.md
+
+      Write the result to index.md.
+    metadata:
+      output_file: index.md

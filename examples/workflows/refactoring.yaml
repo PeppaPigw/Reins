@@ -1,0 +1,72 @@
+name: refactoring
+description: Safe refactoring flow with analysis, planning, implementation, and verification.
+metadata:
+  category: refactor
+
+stages:
+  - name: analyze
+    type: research
+    agent_type: analyst
+    model: gpt-5.4
+    prompt_template: |
+      Analyze the code targeted for refactoring.
+
+      Identify:
+      1. Dependencies and consumers
+      2. Existing test coverage and protection gaps
+      3. Complexity hotspots and coupling risks
+
+      Write the result to analysis.md.
+    metadata:
+      output_file: analysis.md
+
+  - name: plan
+    type: custom
+    agent_type: planner
+    model: gpt-5.4
+    depends_on: [analyze]
+    prompt_template: |
+      Create a refactoring plan from the analysis results.
+
+      Include:
+      1. Ordered steps
+      2. Rollback strategy
+      3. Verification checkpoints
+
+      Write the result to refactoring-plan.md.
+    metadata:
+      output_file: refactoring-plan.md
+
+  - name: implement
+    type: implement
+    agent_type: executor
+    model: gpt-5.4
+    depends_on: [plan]
+    prompt_template: |
+      Implement the approved refactoring plan.
+
+      Requirements:
+      1. Preserve existing functionality
+      2. Keep the diff reviewable
+      3. Update tests as needed
+
+      Record notable decisions in implementation-notes.md.
+    metadata:
+      output_file: implementation-notes.md
+
+  - name: verify
+    type: verify
+    agent_type: verifier
+    model: gpt-5.4-mini
+    depends_on: [implement]
+    prompt_template: |
+      Verify the refactoring outcome.
+
+      Confirm:
+      1. Tests still pass
+      2. Coverage remains adequate
+      3. Behavior matches the pre-refactor baseline
+
+      Write the result to verification-report.md.
+    metadata:
+      output_file: verification-report.md

@@ -1,0 +1,49 @@
+pipeline {
+    agent any
+
+    environment {
+        PYTHON_VERSION = '3.11'
+    }
+
+    stages {
+        stage('Setup') {
+            steps {
+                sh 'python3 -m pip install -e .[dev]'
+            }
+        }
+
+        stage('Seed Task') {
+            steps {
+                sh '''
+                    mkdir -p .reins/tasks/ci-test
+                    cat > .reins/tasks/ci-test/task.json <<'JSON'
+                    {
+                      "task_id": "ci-test",
+                      "title": "Jenkins pipeline smoke test",
+                      "task_type": "backend",
+                      "metadata": {}
+                    }
+                    JSON
+                    echo "# Jenkins pipeline smoke test" > .reins/tasks/ci-test/prd.md
+                '''
+            }
+        }
+
+        stage('Run Pipeline') {
+            steps {
+                sh '''
+                    python3 scripts/run_pipeline.py \
+                        .reins/pipelines/standard.yaml \
+                        --task-dir .reins/tasks/ci-test \
+                        --output .reins/ci-output
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: '.reins/ci-output/**/*', allowEmptyArchive: true
+        }
+    }
+}

@@ -1,0 +1,42 @@
+# GitLab CI example for Reins standalone pipelines
+
+stages:
+  - test
+  - pipeline
+
+variables:
+  PYTHON_VERSION: "3.11"
+
+test:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  script:
+    - python -m pip install -e .[dev]
+    - python -m pytest tests/ -q
+    - python -m ruff check src tests
+
+run-pipeline:
+  stage: pipeline
+  image: python:${PYTHON_VERSION}
+  script:
+    - python -m pip install -e .
+    - mkdir -p .reins/tasks/ci-test
+    - |
+      cat > .reins/tasks/ci-test/task.json <<'JSON'
+      {
+        "task_id": "ci-test",
+        "title": "GitLab pipeline smoke test",
+        "task_type": "backend",
+        "metadata": {}
+      }
+      JSON
+    - echo "# GitLab pipeline smoke test" > .reins/tasks/ci-test/prd.md
+    - >
+      python3 scripts/run_pipeline.py
+      .reins/pipelines/standard.yaml
+      --task-dir .reins/tasks/ci-test
+      --output .reins/ci-output
+  artifacts:
+    paths:
+      - .reins/ci-output/
+    expire_in: 1 week
