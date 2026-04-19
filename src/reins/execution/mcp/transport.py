@@ -24,7 +24,7 @@ class JsonRpcRequest:
     id: int | str | None = None
 
     def to_dict(self) -> dict:
-        result = {"jsonrpc": self.jsonrpc, "method": self.method}
+        result: dict[str, Any] = {"jsonrpc": self.jsonrpc, "method": self.method}
         if self.params is not None:
             result["params"] = self.params
         if self.id is not None:

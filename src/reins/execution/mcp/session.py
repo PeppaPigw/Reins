@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
+from typing import Any
 
 import ulid
 
@@ -173,7 +174,7 @@ class McpSessionManager:
 
         Returns a dict with 'tools', 'resources', and 'prompts' lists.
         """
-        capabilities = {
+        capabilities: dict[str, list[dict[str, Any]]] = {
             "tools": [],
             "resources": [],
             "prompts": [],
