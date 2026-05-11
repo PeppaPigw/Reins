@@ -78,7 +78,7 @@ class HttpTransport(JsonRpcTransport):
 
     async def _ensure_client(self) -> httpx.AsyncClient:
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=self.timeout)
+            self._client = httpx.AsyncClient(timeout=self.timeout, verify=True)
         return self._client
 
     async def send(self, request: JsonRpcRequest) -> JsonRpcResponse:

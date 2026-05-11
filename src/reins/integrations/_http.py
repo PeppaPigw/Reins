@@ -7,10 +7,19 @@ integration templates without introducing extra runtime dependencies.
 from __future__ import annotations
 
 import json
+import ssl
 from base64 import b64encode
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+
+def _tls_context() -> ssl.SSLContext:
+    """Create a strict TLS context that validates certificates."""
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = True
+    ctx.verify_mode = ssl.CERT_REQUIRED
+    return ctx
 
 
 def basic_auth_header(username: str, password: str) -> str:
@@ -62,7 +71,7 @@ def request_text(
         request.add_header(key, value)
 
     try:
-        with urlopen(request, timeout=timeout_seconds) as response:
+        with urlopen(request, timeout=timeout_seconds, context=_tls_context()) as response:
             body = response.read().decode("utf-8")
     except HTTPError as exc:  # pragma: no cover - exercised via unit tests
         error_body = exc.read().decode("utf-8", errors="replace")

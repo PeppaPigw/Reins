@@ -10,11 +10,20 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import ssl
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Iterable
 from urllib.error import URLError
 from urllib.request import urlopen
+
+
+def _tls_context() -> ssl.SSLContext:
+    """Create a strict TLS context that validates certificates."""
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = True
+    ctx.verify_mode = ssl.CERT_REQUIRED
+    return ctx
 
 
 class RemoteRegistryError(RuntimeError):
@@ -131,7 +140,7 @@ class RemoteSpecRegistry:
 
     def _read_remote(self, url: str) -> list[RemoteSpecAsset]:
         try:
-            with urlopen(url) as response:  # noqa: S310 - user-requested fetch surface
+            with urlopen(url, context=_tls_context()) as response:  # noqa: S310 - user-requested fetch surface
                 payload = response.read()
                 content_type = response.headers.get("content-type", "")
         except URLError as exc:
