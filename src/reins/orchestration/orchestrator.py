@@ -25,6 +25,7 @@ from typing import Any, Mapping
 import ulid
 
 from reins.approval.ledger import ApprovalLedger, ApprovalRequest, EffectDescriptor
+from reins.kernel.event.builder import EventBuilder
 from reins.kernel.event.envelope import EventEnvelope
 from reins.kernel.event.journal import EventJournal
 from reins.kernel.intent.envelope import IntentEnvelope
@@ -84,6 +85,7 @@ class Orchestrator:
         poll_interval_seconds: float = 0.01,
     ) -> None:
         self._journal = journal
+        self._builder = EventBuilder(journal)
         self._policy = policy_engine
         self._approvals = approval_ledger
         self._poll_interval_seconds = poll_interval_seconds
@@ -327,13 +329,12 @@ class Orchestrator:
         event_type: str,
         payload: Mapping[str, Any],
     ) -> EventEnvelope:
-        event = EventEnvelope(
+        return await self._builder.commit(
             run_id=run_id,
-            actor=Actor.runtime,
-            type=event_type,
+            event_type=event_type,
             payload=dict(payload),
+            actor=Actor.runtime,
         )
-        return await self._journal.append(event)
 
     @staticmethod
     def _coerce_mapping(value: Any) -> dict[str, Any]:

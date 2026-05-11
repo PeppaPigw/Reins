@@ -96,16 +96,35 @@ class SubagentManager:
         checkpoint_store: CheckpointStore,
         policy_engine: PolicyEngine,
         worktree_manager: WorktreeManager | None = None,
+        isolation_level: IsolationLevel = IsolationLevel.NONE,
     ) -> None:
         self._journal = journal
         self._snapshot_store = snapshot_store
         self._checkpoint_store = checkpoint_store
         self._policy = policy_engine
         self._worktree_manager = worktree_manager
+        self._isolation_level = isolation_level
         self._active: dict[str, SubagentHandle] = {}
         self._children: dict[str, RunOrchestrator] = {}
         self._completed: list[SubagentHandle] = []
         self._builder = EventBuilder(journal)
+
+    @classmethod
+    def create(
+        cls,
+        isolation_level: IsolationLevel = IsolationLevel.NONE,
+        **kwargs: Any,
+    ) -> SubagentManager:
+        """Factory method for creating a SubagentManager with a specific isolation level.
+
+        Args:
+            isolation_level: Desired isolation level for spawned subagents.
+            **kwargs: Forwarded to __init__ (journal, snapshot_store, etc.)
+
+        Returns:
+            Configured SubagentManager instance.
+        """
+        return cls(isolation_level=isolation_level, **kwargs)
 
     async def spawn(self, spec: SubagentSpec) -> SubagentHandle:
         """Spawn a new local subagent. Returns a handle for supervision."""

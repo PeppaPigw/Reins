@@ -1,7 +1,11 @@
-"""Subagent manager for multi-agent workflow coordination.
+"""Worktree-isolation subagent manager for multi-agent workflow coordination.
 
-Manages subagent lifecycle: creation, context injection, monitoring, and cleanup.
-Integrates with WorktreeManager for isolation and ContextInjectionHook for spec delivery.
+This is the worktree-isolation implementation of subagent management.
+It integrates with WorktreeManager for git-level isolation and
+ContextInjectionHook for spec delivery.
+
+For the core subagent manager (logical isolation, no worktree dependency),
+see ``reins.subagent.manager.SubagentManager``.
 
 Key Responsibilities:
 - Create isolated execution environments (worktrees)
@@ -58,7 +62,7 @@ class AgentResult:
     error_message: str | None = None
 
 
-class SubagentManager:
+class WorktreeSubagentManager:
     """Manages subagent lifecycle and context injection.
 
     Integration points:
@@ -499,3 +503,7 @@ class SubagentManager:
 
         branch = result.stdout.strip()
         return branch or "main"
+
+
+# Backward-compatible alias so existing imports continue to work.
+SubagentManager = WorktreeSubagentManager

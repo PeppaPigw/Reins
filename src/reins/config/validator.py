@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from reins.config.types import ReinsConfig
-from reins.isolation.worktree_config import WorktreeTemplateConfig
+
+if TYPE_CHECKING:
+    from reins.isolation.worktree_config import WorktreeTemplateConfig
 
 VALID_PACKAGE_TYPES = {"package", "submodule"}
 
