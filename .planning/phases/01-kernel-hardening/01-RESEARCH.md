@@ -348,27 +348,15 @@ async def compact(self, run_id: str, policy: RetentionPolicy) -> int:
 | A3 | `reins_version` should go in payload rather than as a top-level envelope field | Code Examples | Low - either approach works; top-level is cleaner but requires envelope schema change |
 | A4 | hypothesis stateful testing is the right approach for reducer | Pattern 3 | Low - even basic @given tests provide value |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Per-event-type vs global schema versioning**
-   - What we know: Current `schema_version: int = 1` is on the envelope, global across all event types
-   - What's unclear: Whether different event types will evolve at different rates
-   - Recommendation: Start with global (simpler), add per-type only if needed. The upcaster registry can support both.
+1. **Per-event-type vs global schema versioning** — RESOLVED: Global versioning (simpler). The upcaster registry supports both; start global, add per-type only if event types evolve at different rates.
 
-2. **Where to embed reins_version: envelope field vs payload key**
-   - What we know: Adding a field to EventEnvelope changes the frozen dataclass and all serialization
-   - What's unclear: Whether downstream consumers parse the payload and would be confused by `_reins_version`
-   - Recommendation: Add as a top-level field on EventEnvelope (cleaner, explicit, type-safe). Accept the one-time schema change.
+2. **Where to embed reins_version: envelope field vs payload key** — RESOLVED: Top-level field on EventEnvelope. Cleaner, explicit, type-safe. One-time schema change accepted.
 
-3. **Consolidation strategy for duplicates**
-   - What we know: `reins.orchestration.orchestrator.Orchestrator` is a lightweight intent router. `reins.kernel.orchestrator.RunOrchestrator` is the full supervisor loop. `reins.orchestration.subagent_manager.SubagentManager` manages worktree-based agents. `reins.subagent.manager.SubagentManager` manages logical child runs.
-   - What's unclear: Whether these are truly duplicates or complementary implementations at different abstraction levels
-   - Recommendation: They appear complementary (different responsibilities). Consolidate by making `orchestration.Orchestrator` delegate to `kernel.RunOrchestrator` rather than reimplementing event emission. Merge the two SubagentManagers into one that supports both worktree and logical isolation modes.
+3. **Consolidation strategy for duplicates** — RESOLVED: Implementations are complementary, not duplicates. Consolidate by making `orchestration.Orchestrator` delegate to `kernel.RunOrchestrator`. Merge SubagentManagers into one supporting both worktree and logical isolation modes.
 
-4. **Compaction trigger: automatic vs manual**
-   - What we know: Journal files grow unbounded currently
-   - What's unclear: Expected journal sizes in practice (events per run)
-   - Recommendation: Start with manual (`reins compact` CLI command) + configurable auto-trigger threshold.
+4. **Compaction trigger: automatic vs manual** — RESOLVED: Manual first (`reins compact` CLI) + configurable auto-trigger threshold for later.
 
 <phase_requirements>
 ## Phase Requirements
