@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shlex
 from pathlib import Path
 
 from reins.execution.adapter import Adapter, Handle, Observation
@@ -37,8 +38,9 @@ class SandboxedShellAdapter(Adapter):
         # Build restricted environment
         env = self._build_sandboxed_env(session["env"], command.get("env", {}))
 
-        process = await asyncio.create_subprocess_shell(
-            cmd,
+        cmd_list = shlex.split(cmd) if isinstance(cmd, str) else list(cmd)
+        process = await asyncio.create_subprocess_exec(
+            *cmd_list,
             cwd=cwd,
             env=env,
             stdout=asyncio.subprocess.PIPE,
@@ -51,7 +53,12 @@ class SandboxedShellAdapter(Adapter):
             stdout=stdout.decode(),
             stderr=stderr.decode(),
             exit_code=int(process.returncode or 0),
-            effect_descriptor={"cmd": cmd, "cwd": session["cwd"], "sandboxed": True},
+            effect_descriptor={
+                "cmd": cmd,
+                "cwd": session["cwd"],
+                "sandboxed": True,
+                "exec_style": True,
+            },
         )
 
     @staticmethod
@@ -157,8 +164,9 @@ class NetworkShellAdapter(Adapter):
         cwd = command.get("cwd", session["cwd"])
         env = session["env"] | command.get("env", {})
 
-        process = await asyncio.create_subprocess_shell(
-            cmd,
+        cmd_list = shlex.split(cmd) if isinstance(cmd, str) else list(cmd)
+        process = await asyncio.create_subprocess_exec(
+            *cmd_list,
             cwd=cwd,
             env=env or None,
             stdout=asyncio.subprocess.PIPE,
@@ -171,7 +179,12 @@ class NetworkShellAdapter(Adapter):
             stdout=stdout.decode(),
             stderr=stderr.decode(),
             exit_code=int(process.returncode or 0),
-            effect_descriptor={"cmd": cmd, "cwd": session["cwd"], "network": True},
+            effect_descriptor={
+                "cmd": cmd,
+                "cwd": session["cwd"],
+                "network": True,
+                "exec_style": True,
+            },
         )
 
     async def snapshot(self, handle: Handle) -> str:

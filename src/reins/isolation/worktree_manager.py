@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import shlex
 import shutil
 import subprocess
 from datetime import UTC, datetime
@@ -620,9 +621,10 @@ class WorktreeManager:
             )
 
     async def _run_command(self, command: str, cwd: Path) -> str:
-        """Run a shell command."""
-        proc = await asyncio.create_subprocess_shell(
-            command,
+        """Run a command using exec-style invocation (no shell)."""
+        cmd_list = shlex.split(command) if isinstance(command, str) else list(command)
+        proc = await asyncio.create_subprocess_exec(
+            *cmd_list,
             cwd=cwd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -640,9 +642,10 @@ class WorktreeManager:
         return stdout.decode()
 
     async def _run_command_capture(self, command: str, cwd: Path) -> dict[str, Any]:
-        """Run a shell command and capture output without raising."""
-        proc = await asyncio.create_subprocess_shell(
-            command,
+        """Run a command using exec-style invocation and capture output without raising."""
+        cmd_list = shlex.split(command) if isinstance(command, str) else list(command)
+        proc = await asyncio.create_subprocess_exec(
+            *cmd_list,
             cwd=cwd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
