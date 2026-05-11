@@ -1,10 +1,11 @@
 """Reins aiohttp.web server — assembles routes and starts the API.
 
 Usage:
-    python -m reins.api.server [--host 0.0.0.0] [--port 8000] [--state-dir .reins_state]
+    python -m reins.api.server [--host 127.0.0.1] [--port 8000] [--state-dir .reins_state]
+    python -m reins.api.server --expose-network  # binds to 0.0.0.0
 
 Environment:
-    REINS_HOST       — bind host (default: 0.0.0.0)
+    REINS_HOST       — bind host (default: 127.0.0.1)
     REINS_PORT       — bind port (default: 8000)
     REINS_STATE_DIR  — durable state base dir (default: .reins_state)
 """
@@ -57,7 +58,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
 
     parser = argparse.ArgumentParser(description="Reins agent kernel HTTP API")
-    parser.add_argument("--host", default=os.getenv("REINS_HOST", "0.0.0.0"))
+    parser.add_argument("--host", default=os.getenv("REINS_HOST", "127.0.0.1"))
     parser.add_argument(
         "--port", type=int, default=int(os.getenv("REINS_PORT", "8000"))
     )
@@ -66,13 +67,20 @@ def main() -> None:
         default=os.getenv("REINS_STATE_DIR", ".reins_state"),
         help="Base directory for durable state (journals, snapshots, checkpoints)",
     )
+    parser.add_argument(
+        "--expose-network",
+        action="store_true",
+        default=False,
+        help="Bind to 0.0.0.0 instead of localhost (exposes API to network)",
+    )
     args = parser.parse_args()
 
+    host = "0.0.0.0" if args.expose_network else args.host
     state_dir = Path(args.state_dir).resolve()
-    log.info("Reins API starting on %s:%d (state=%s)", args.host, args.port, state_dir)
+    log.info("Reins API starting on %s:%d (state=%s)", host, args.port, state_dir)
 
     app = build_app(state_dir=state_dir)
-    web.run_app(app, host=args.host, port=args.port)
+    web.run_app(app, host=host, port=args.port)
 
 
 if __name__ == "__main__":
