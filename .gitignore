@@ -1,6 +1,8 @@
 memo/
 .*/
 !.gitignore
+!.planning/
+!.github/
 __pycache__
 AGENTS.md
 *.DS_Store
@@ -8,3 +10,4 @@ amp
 pytest/
 docs/
 task_plan.md
+CLAUDE.md
