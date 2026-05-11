@@ -26,5 +26,37 @@ jobs:
         run: ruff check src/ tests/
       - name: Type check with mypy
         run: mypy src/reins/ --ignore-missing-imports
-      - name: Run tests
-        run: pytest tests/ -x -q --tb=short
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ -x -q --tb=short \
+            --cov=src/reins \
+            --cov-report=json \
+            --cov-report=term-missing
+      - name: Check coverage gates
+        run: |
+          python -c "
+          from pathlib import Path
+          from reins.testing.coverage_config import (
+              parse_coverage_json,
+              check_coverage_gates,
+              format_coverage_table,
+          )
+
+          json_path = Path('coverage.json')
+          if not json_path.exists():
+              print('No coverage.json found, skipping gate check')
+              exit(0)
+
+          reports = parse_coverage_json(json_path)
+          print(format_coverage_table(reports))
+          passed, failures = check_coverage_gates(reports)
+          if not passed:
+              print()
+              print('Coverage gate FAILED:')
+              for f in failures:
+                  print(f'  - {f}')
+              exit(1)
+          else:
+              print()
+              print('All coverage gates passed.')
+          "
