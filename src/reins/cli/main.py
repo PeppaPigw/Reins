@@ -8,6 +8,7 @@ from reins.cli import completion
 from reins.cli.commands import (
     config,
     developer,
+    doctor,
     init,
     journal,
     migrate,
@@ -78,6 +79,7 @@ app.command(name="init")(init.init_command)
 app.command(name="status")(status.status_command)
 app.command(name="update")(update.update)
 app.command(name="uninstall")(uninstall.uninstall_command)
+app.command(name="doctor")(doctor.doctor_command)
 
 
 @app.callback()
