@@ -128,20 +128,72 @@
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| KERN-01 through KERN-06 | Phase 1 | Pending |
-| SEC-01 through SEC-06 | Phase 2 | Pending |
-| PLAT-01 through PLAT-07 | Phase 3 | Pending |
-| WF-01 through WF-06 | Phase 4 | Pending |
-| PKG-01 through PKG-07 | Phase 5 | Pending |
-| TEST-01 through TEST-06 | Phase 8 | Pending |
-| PERF-01 through PERF-05 | Phase 6 | Pending |
-| DOC-01 through DOC-06 | Phase 5 | Pending |
-| DX-01 through DX-05 | Phase 5 | Pending |
-| OBS-01 through OBS-05 | Phase 6 | Pending |
-| INT-01 through INT-04 | Phase 7 | Pending |
+| KERN-01 | Phase 1 | Pending |
+| KERN-02 | Phase 1 | Pending |
+| KERN-03 | Phase 1 | Pending |
+| KERN-04 | Phase 1 | Pending |
+| KERN-05 | Phase 1 | Pending |
+| KERN-06 | Phase 1 | Pending |
+| SEC-01 | Phase 2 | Pending |
+| SEC-02 | Phase 2 | Pending |
+| SEC-03 | Phase 2 | Pending |
+| SEC-04 | Phase 2 | Pending |
+| SEC-05 | Phase 2 | Pending |
+| SEC-06 | Phase 2 | Pending |
+| PLAT-01 | Phase 3 | Pending |
+| PLAT-02 | Phase 3 | Pending |
+| PLAT-03 | Phase 3 | Pending |
+| PLAT-04 | Phase 3 | Pending |
+| PLAT-05 | Phase 3 | Pending |
+| PLAT-06 | Phase 3 | Pending |
+| PLAT-07 | Phase 3 | Pending |
+| WF-01 | Phase 4 | Pending |
+| WF-02 | Phase 4 | Pending |
+| WF-03 | Phase 4 | Pending |
+| WF-04 | Phase 4 | Pending |
+| WF-05 | Phase 4 | Pending |
+| WF-06 | Phase 4 | Pending |
+| PKG-01 | Phase 5 | Pending |
+| PKG-02 | Phase 5 | Pending |
+| PKG-03 | Phase 5 | Pending |
+| PKG-04 | Phase 5 | Pending |
+| PKG-05 | Phase 5 | Pending |
+| PKG-06 | Phase 5 | Pending |
+| PKG-07 | Phase 5 | Pending |
+| PERF-01 | Phase 6 | Pending |
+| PERF-02 | Phase 6 | Pending |
+| PERF-03 | Phase 6 | Pending |
+| PERF-04 | Phase 6 | Pending |
+| PERF-05 | Phase 6 | Pending |
+| OBS-01 | Phase 6 | Pending |
+| OBS-02 | Phase 6 | Pending |
+| OBS-03 | Phase 6 | Pending |
+| OBS-04 | Phase 6 | Pending |
+| OBS-05 | Phase 6 | Pending |
+| INT-01 | Phase 7 | Pending |
+| INT-02 | Phase 7 | Pending |
+| INT-03 | Phase 7 | Pending |
+| INT-04 | Phase 7 | Pending |
+| DOC-01 | Phase 8 | Pending |
+| DOC-02 | Phase 8 | Pending |
+| DOC-03 | Phase 8 | Pending |
+| DOC-04 | Phase 8 | Pending |
+| DOC-05 | Phase 8 | Pending |
+| DOC-06 | Phase 8 | Pending |
+| DX-01 | Phase 8 | Pending |
+| DX-02 | Phase 8 | Pending |
+| DX-03 | Phase 8 | Pending |
+| DX-04 | Phase 8 | Pending |
+| DX-05 | Phase 8 | Pending |
+| TEST-01 | Phase 9 | Pending |
+| TEST-02 | Phase 9 | Pending |
+| TEST-03 | Phase 5 | Pending |
+| TEST-04 | Phase 3 | Pending |
+| TEST-05 | Phase 9 | Pending |
+| TEST-06 | Phase 9 | Pending |
 
 ---
 
-*Generated: 2026-05-11*
-*Total v1 requirements: 56*
+*Updated: 2026-05-11*
+*Total v1 requirements: 63*
 *Categories: 10*
