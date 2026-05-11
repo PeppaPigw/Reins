@@ -86,6 +86,120 @@ class LinearClient:
         if data["issueUpdate"].get("success") is not True:
             raise RuntimeError(f"Linear failed to update issue {issue_id}")
 
+    def get_issue(self, issue_id: str) -> dict[str, Any]:
+        """Query a Linear issue by ID and return its full data."""
+        data = self._graphql(
+            """
+            query Issue($id: String!) {
+              issue(id: $id) {
+                id
+                identifier
+                title
+                description
+                url
+                state {
+                  id
+                  name
+                  type
+                }
+                labels {
+                  nodes {
+                    id
+                    name
+                  }
+                }
+              }
+            }
+            """,
+            {"id": issue_id},
+        )
+        issue = data.get("issue")
+        if not isinstance(issue, dict):
+            raise RuntimeError(f"Linear issue '{issue_id}' not found")
+        return issue
+
+    def get_issue_state(self, issue_id: str) -> str:
+        """Return the current workflow state name for an issue."""
+        issue = self.get_issue(issue_id)
+        state = issue.get("state")
+        if isinstance(state, dict):
+            return str(state.get("name", ""))
+        return ""
+
+    def list_team_states(self) -> list[dict[str, str]]:
+        """Return all workflow states for the configured team."""
+        data = self._graphql(
+            """
+            query TeamStates($id: String!) {
+              team(id: $id) {
+                states {
+                  nodes {
+                    id
+                    name
+                    type
+                  }
+                }
+              }
+            }
+            """,
+            {"id": self.config.team_id},
+        )
+        team = data.get("team")
+        if not isinstance(team, dict):
+            raise RuntimeError(f"Linear team '{self.config.team_id}' was not found")
+        nodes = team.get("states", {}).get("nodes", [])
+        return [
+            {"id": n["id"], "name": n["name"], "type": n["type"]}
+            for n in nodes
+            if isinstance(n, dict)
+        ]
+
+    def sync_state_from_reins(self, issue_id: str, reins_status: str) -> None:
+        """Map a Reins task status to a Linear state and update the issue.
+
+        Mapping:
+          planning/pending -> Todo
+          in_progress     -> In Progress
+          completed       -> Done
+          blocked         -> Blocked
+        """
+        status_to_state: dict[str, str] = {
+            "planning": "todo",
+            "pending": "todo",
+            "in_progress": "in_progress",
+            "completed": "done",
+            "blocked": "blocked",
+        }
+        normalized = _normalize_status(reins_status)
+        linear_status = status_to_state.get(normalized, normalized)
+        self.update_issue_status(issue_id, linear_status)
+
+    def get_issues_by_label(self, label: str) -> list[dict[str, Any]]:
+        """Query issues with a specific label (for finding agent-managed issues)."""
+        data = self._graphql(
+            """
+            query IssuesByLabel($filter: IssueFilter) {
+              issues(filter: $filter) {
+                nodes {
+                  id
+                  identifier
+                  title
+                  url
+                  state {
+                    id
+                    name
+                    type
+                  }
+                }
+              }
+            }
+            """,
+            {"filter": {"labels": {"name": {"eq": label}}}},
+        )
+        issues = data.get("issues", {})
+        nodes = issues.get("nodes", []) if isinstance(issues, dict) else []
+        return [n for n in nodes if isinstance(n, dict)]
+
     def _get_state_id(self, status: str) -> str:
         """Resolve a friendly status name into a Linear workflow state id."""
         explicit_ids = {
