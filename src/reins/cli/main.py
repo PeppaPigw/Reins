@@ -15,6 +15,8 @@ from reins.cli.commands import (
     spec,
     status,
     task,
+    uninstall,
+    update,
     workspace,
     worktree,
 )
@@ -72,6 +74,8 @@ app.add_typer(journal.app, name="journal")
 app.add_typer(pipeline.app, name="pipeline")
 app.command(name="init")(init.init_command)
 app.command(name="status")(status.status_command)
+app.command(name="update")(update.update)
+app.command(name="uninstall")(uninstall.uninstall_command)
 
 
 @app.callback()

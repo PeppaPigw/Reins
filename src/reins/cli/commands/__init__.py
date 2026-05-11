@@ -9,6 +9,8 @@ __all__ = [
     "status",
     "task",
     "task_context",
+    "uninstall",
+    "update",
     "workspace",
     "worktree",
 ]
