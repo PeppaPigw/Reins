@@ -382,7 +382,7 @@ with urlopen(url, context=_create_tls_context()) as response:
 | A2 | TOCTOU in fs adapter path containment is acceptable risk for agent sandboxing | Common Pitfalls | If adversarial actors can create symlinks during execution, path escape is possible |
 | A3 | pydantic v2 is the right choice for API validation (it's already in deps) | Standard Stack | If project intentionally avoided pydantic for a reason, this adds unwanted coupling |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Hook executor design decision**
    - What we know: `config/hooks.py` uses `shell=True` by design for user-configured hooks
