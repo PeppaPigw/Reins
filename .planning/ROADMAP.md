@@ -34,7 +34,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Reducer functions satisfy commutativity and idempotency invariants under property-based testing
   4. Journal compaction reduces storage while preserving full replay capability within retention window
   5. A single canonical orchestration path exists with no duplicate implementations
-**Plans**: TBD
+**Plans:** 4 plans
+Plans:
+- [ ] 01-01-PLAN.md — Version embedding + event schema versioning with upcaster registry
+- [ ] 01-02-PLAN.md — Snapshot integrity validation + journal compaction
+- [ ] 01-03-PLAN.md — Orchestrator consolidation (eliminate duplicate implementations)
+- [ ] 01-04-PLAN.md — Property-based reducer tests with hypothesis
 
 ### Phase 2: Security & Policy
 **Goal**: All execution paths are sandboxed, validated, and formally threat-modeled
@@ -139,7 +144,7 @@ Note: Phase 6 can begin after Phase 1 (parallel with 2-5). Phase 9 can begin aft
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Kernel Hardening | 0/TBD | Not started | - |
+| 1. Kernel Hardening | 0/4 | Planning complete | - |
 | 2. Security & Policy | 0/TBD | Not started | - |
 | 3. Platform Parity | 0/TBD | Not started | - |
 | 4. Workflow UX & Skills | 0/TBD | Not started | - |
