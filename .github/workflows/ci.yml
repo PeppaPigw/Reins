@@ -7,8 +7,25 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Lint with ruff
+        run: ruff check src/ tests/
+      - name: Type check with mypy
+        run: mypy src/reins/ --ignore-missing-imports
+
+  unit-tests:
     runs-on: ${{ matrix.os }}
+    needs: [lint]
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -22,13 +39,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      - name: Lint with ruff
-        run: ruff check src/ tests/
-      - name: Type check with mypy
-        run: mypy src/reins/ --ignore-missing-imports
-      - name: Run tests with coverage
+      - name: Run unit tests with coverage
         run: |
-          pytest tests/ -x -q --tb=short \
+          pytest tests/unit/ tests/test_*.py -x -q --tb=short \
             --cov=src/reins \
             --cov-report=json \
             --cov-report=term-missing
@@ -60,3 +73,27 @@ jobs:
               print()
               print('All coverage gates passed.')
           "
+
+  integration-tests:
+    runs-on: ${{ matrix.os }}
+    needs: [unit-tests]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Configure git for tests
+        run: |
+          git config --global user.name "CI Bot"
+          git config --global user.email "ci@test.local"
+      - name: Run integration tests
+        run: |
+          pytest tests/integration/ -x -q --tb=short
