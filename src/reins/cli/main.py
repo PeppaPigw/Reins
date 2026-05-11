@@ -12,6 +12,7 @@ from reins.cli.commands import (
     journal,
     migrate,
     pipeline,
+    replay,
     spec,
     status,
     task,
@@ -72,6 +73,7 @@ app.add_typer(migrate.app, name="migrate")
 app.add_typer(worktree.app, name="worktree")
 app.add_typer(journal.app, name="journal")
 app.add_typer(pipeline.app, name="pipeline")
+app.add_typer(replay.app, name="replay")
 app.command(name="init")(init.init_command)
 app.command(name="status")(status.status_command)
 app.command(name="update")(update.update)
