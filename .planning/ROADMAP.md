@@ -12,7 +12,7 @@ Reins must surpass Trellis across all 14 engineering dimensions. This roadmap de
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Kernel Hardening** - Event schema versioning, snapshot integrity, reducer correctness, journal compaction
+- [x] **Phase 1: Kernel Hardening** - Event schema versioning, snapshot integrity, reducer correctness, journal compaction
 - [ ] **Phase 2: Security & Policy** - Shell safety, network binding, policy enforcement, TLS validation, threat model, input validation
 - [ ] **Phase 3: Platform Parity** - Template engine, hash-based staleness detection, 14+ platform configurators with contract tests
 - [ ] **Phase 4: Workflow UX & Skills** - Session breadcrumbs, brainstorm/planning skill, break-loop, spec updates, task pointer, state machine
@@ -51,7 +51,11 @@ Plans:
   3. No code path can execute a capability-gated action without passing through the policy engine
   4. A published threat model covers sandboxing, exfiltration, and privilege escalation with mitigations
   5. Malformed CLI args, API payloads, and config files produce structured validation errors (not crashes)
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 02-01-PLAN.md — Shell exec hardening + API localhost binding (SEC-01, SEC-02)
+- [ ] 02-02-PLAN.md — TLS validation + policy bypass audit (SEC-03, SEC-04)
+- [ ] 02-03-PLAN.md — Input validation + formal threat model (SEC-05, SEC-06)
 
 ### Phase 3: Platform Parity
 **Goal**: Reins generates valid, tested configurations for 14+ AI coding platforms
@@ -144,8 +148,8 @@ Note: Phase 6 can begin after Phase 1 (parallel with 2-5). Phase 9 can begin aft
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Kernel Hardening | 0/4 | Planning complete | - |
-| 2. Security & Policy | 0/TBD | Not started | - |
+| 1. Kernel Hardening | 4/4 | Complete | 2026-05-11 |
+| 2. Security & Policy | 0/3 | In Progress | - |
 | 3. Platform Parity | 0/TBD | Not started | - |
 | 4. Workflow UX & Skills | 0/TBD | Not started | - |
 | 5. Migration & Packaging | 0/TBD | Not started | - |
