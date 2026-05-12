@@ -7,6 +7,7 @@ from typing import Any
 
 import ulid
 
+from reins import __version__ as REINS_VERSION
 from reins.kernel.types import Actor
 from reins.serde import canonical_json, parse_dt, to_primitive
 
@@ -27,6 +28,7 @@ class EventEnvelope:
     trace_id: str = field(default_factory=lambda: str(ulid.new()))
     event_id: str = field(default_factory=lambda: str(ulid.new()))
     schema_version: int = 1
+    reins_version: str = field(default_factory=lambda: REINS_VERSION)
     ts: datetime = field(default_factory=lambda: datetime.now(UTC))
     checksum: str = ""
 
@@ -53,6 +55,7 @@ def event_from_dict(data: dict[str, Any]) -> EventEnvelope:
         actor=Actor(data["actor"]),
         type=data["type"],
         schema_version=data["schema_version"],
+        reins_version=data.get("reins_version", "unknown"),
         payload=data["payload"],
         developer=data.get("developer"),
         session_id=data.get("session_id"),

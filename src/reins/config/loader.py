@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml
 
-from reins.config.types import HooksConfig, PackageConfig, ReinsConfig, UpdateConfig
+from reins.config.types import HooksConfig, IntelligenceConfig, PackageConfig, ReinsConfig, UpdateConfig
 
 DEFAULT_CONFIG_TEMPLATE = """# Reins Configuration
 # Project-level settings
@@ -99,6 +99,7 @@ class ConfigLoader:
         default_package = self._expect_optional_string(data, "default_package")
         hooks = self._parse_hooks(data.get("hooks", {}))
         update = self._parse_update(data.get("update", {}))
+        intelligence = self._parse_intelligence(data.get("intelligence", {}))
 
         return ReinsConfig(
             session_commit_message=session_commit_message,
@@ -107,6 +108,7 @@ class ConfigLoader:
             default_package=default_package,
             hooks=hooks,
             update=update,
+            intelligence=intelligence,
         )
 
     def _parse_packages(self, value: object) -> dict[str, PackageConfig]:
@@ -171,6 +173,22 @@ class ConfigLoader:
             )
         return UpdateConfig(
             skip=self._string_list(value.get("skip", []), field_name="update.skip")
+        )
+
+    def _parse_intelligence(self, value: object) -> IntelligenceConfig:
+        if value in ({}, None):
+            return IntelligenceConfig()
+        if not isinstance(value, dict):
+            raise ConfigLoaderError(
+                f"'intelligence' must be a mapping in {self.config_path}"
+            )
+        return IntelligenceConfig(
+            enabled=bool(value.get("enabled", False)),
+            mode=str(value.get("mode", "observe")),
+            store_path=str(value.get("store_path", ".reins/intelligence")),
+            retrospective_adapter=bool(value.get("retrospective_adapter", True)),
+            max_retries=int(value.get("max_retries", 3)),
+            escalation_threshold=int(value.get("escalation_threshold", 3)),
         )
 
     def _expect_string(

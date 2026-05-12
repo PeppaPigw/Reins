@@ -5,12 +5,30 @@ from pathlib import Path
 import yaml
 
 
+def test_ci_workflow_exists_and_parses() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+
+    ci_workflow = yaml.safe_load(
+        (repo_root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    )
+
+    assert "jobs" in ci_workflow
+    assert ci_workflow["name"] == "CI"
+
+
+def test_release_workflow_exists_and_parses() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+
+    release_workflow = yaml.safe_load(
+        (repo_root / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    )
+
+    assert "jobs" in release_workflow
+
+
 def test_ci_cd_examples_exist_and_parse() -> None:
     repo_root = Path(__file__).resolve().parents[2]
 
-    github_workflow = yaml.safe_load(
-        (repo_root / ".github" / "workflows" / "reins-pipeline.yml").read_text(encoding="utf-8")
-    )
     gitlab_workflow = yaml.safe_load(
         (repo_root / ".gitlab-ci.yml.example").read_text(encoding="utf-8")
     )
@@ -18,8 +36,6 @@ def test_ci_cd_examples_exist_and_parse() -> None:
         (repo_root / "docker" / "docker-compose.yml").read_text(encoding="utf-8")
     )
 
-    assert "jobs" in github_workflow
-    assert "run-pipeline" in github_workflow["jobs"]
     assert "stages" in gitlab_workflow
     assert "services" in compose
     assert "reins-pipeline" in compose["services"]

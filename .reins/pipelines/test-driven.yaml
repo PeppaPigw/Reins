@@ -1,0 +1,31 @@
+name: test-driven
+description: Test-driven development pipeline — tests first, then implementation
+stages:
+  - name: plan
+    type: implement
+    agent_type: planner
+    prompt_template: "Plan test cases and acceptance criteria for: {objective}"
+    timeout_seconds: 600
+    context_files:
+      - ".reins/spec/standing-law.md"
+
+  - name: write-tests
+    type: implement
+    agent_type: coder
+    prompt_template: "Write failing tests based on the plan: {objective}"
+    depends_on: [plan]
+    timeout_seconds: 1800
+
+  - name: implement
+    type: implement
+    agent_type: coder
+    prompt_template: "Implement code to make all tests pass: {objective}"
+    depends_on: [write-tests]
+    timeout_seconds: 3600
+
+  - name: verify
+    type: verify
+    agent_type: reviewer
+    prompt_template: "Verify all tests pass and implementation is complete: {objective}"
+    depends_on: [implement]
+    timeout_seconds: 600

@@ -3,6 +3,7 @@ __all__ = [
     "developer",
     "doctor",
     "init",
+    "intelligence",
     "journal",
     "migrate",
     "pipeline",

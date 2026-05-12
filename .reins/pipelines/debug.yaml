@@ -1,0 +1,31 @@
+name: debug
+description: Debugging pipeline — reproduce, diagnose, fix, verify
+stages:
+  - name: reproduce
+    type: debug
+    agent_type: debugger
+    prompt_template: "Reproduce and isolate the issue: {objective}"
+    timeout_seconds: 900
+    context_files:
+      - ".reins/spec/standing-law.md"
+
+  - name: diagnose
+    type: debug
+    agent_type: debugger
+    prompt_template: "Diagnose root cause of the reproduced issue: {objective}"
+    depends_on: [reproduce]
+    timeout_seconds: 900
+
+  - name: fix
+    type: implement
+    agent_type: coder
+    prompt_template: "Implement fix for the diagnosed root cause: {objective}"
+    depends_on: [diagnose]
+    timeout_seconds: 1800
+
+  - name: verify
+    type: verify
+    agent_type: reviewer
+    prompt_template: "Verify the fix resolves the issue without regressions: {objective}"
+    depends_on: [fix]
+    timeout_seconds: 600

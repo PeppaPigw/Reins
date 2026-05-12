@@ -1,9 +1,10 @@
 memo/
 .*/
 !.gitignore
-!.planning/
 !.github/
-__pycache__
+!.reins/
+__pycache__/
+*.pyc
 AGENTS.md
 *.DS_Store
 amp
@@ -11,3 +12,22 @@ pytest/
 docs/
 task_plan.md
 CLAUDE.md
+
+# Secrets / credentials
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+secrets.yaml
+
+# Coverage / build artifacts
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Planning artifacts (local only)
+.planning/
+.trellis/

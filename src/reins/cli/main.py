@@ -10,6 +10,7 @@ from reins.cli.commands import (
     developer,
     doctor,
     init,
+    intelligence,
     journal,
     migrate,
     pipeline,
@@ -75,6 +76,7 @@ app.add_typer(worktree.app, name="worktree")
 app.add_typer(journal.app, name="journal")
 app.add_typer(pipeline.app, name="pipeline")
 app.add_typer(replay.app, name="replay")
+app.add_typer(intelligence.app, name="intelligence")
 app.command(name="init")(init.init_command)
 app.command(name="status")(status.status_command)
 app.command(name="update")(update.update)

@@ -5,9 +5,15 @@ from __future__ import annotations
 import logging
 
 from aiohttp import web
+from pydantic import ValidationError
 
+from reins.api.models import (
+    ApprovalRequest,
+    RejectionRequest,
+    SubmitCommandRequest,
+)
 from reins.api.registry import RunRegistry
-from reins.api.routes import _error, _json
+from reins.api.routes import _error, _json, _validation_error
 
 log = logging.getLogger(__name__)
 
@@ -32,19 +38,20 @@ async def handle_submit_command(request: web.Request) -> web.Response:
     except Exception:
         return _error("invalid JSON body")
 
-    kind = body.get("kind", "").strip()
-    if not kind:
-        return _error("kind is required")
+    try:
+        validated = SubmitCommandRequest.model_validate(body)
+    except ValidationError as exc:
+        return _validation_error(exc)
 
     try:
         result = await reg.submit_command(
             run_id=run_id,
-            kind=kind,
-            args=body.get("args", {}),
-            source=body.get("source", "model"),
-            rationale_ref=body.get("rationale_ref"),
-            idempotency_key=body.get("idempotency_key"),
-            evaluate=body.get("evaluate", False),
+            kind=validated.kind,
+            args=validated.args,
+            source=validated.source,
+            rationale_ref=validated.rationale_ref,
+            idempotency_key=validated.idempotency_key,
+            evaluate=validated.evaluate,
         )
     except KeyError:
         return _error(f"run not found: {run_id}", 404)
@@ -67,13 +74,14 @@ async def handle_approve(request: web.Request) -> web.Response:
     except Exception:
         return _error("invalid JSON body")
 
-    request_id = body.get("request_id", "").strip()
-    if not request_id:
-        return _error("request_id is required")
+    try:
+        validated = ApprovalRequest.model_validate(body)
+    except ValidationError as exc:
+        return _validation_error(exc)
 
     try:
         grant = await reg.approve(
-            run_id, request_id, granted_by=body.get("granted_by", "human")
+            run_id, validated.request_id, granted_by=validated.granted_by
         )
     except KeyError:
         return _error(f"run not found: {run_id}", 404)
@@ -82,8 +90,12 @@ async def handle_approve(request: web.Request) -> web.Response:
         return _error(str(exc), 500)
 
     if grant is None:
-        return _error("approval request not found or ledger not configured", 404)
-    return _json({"grant_id": grant.grant_id, "capability": grant.capability})
+        return _error(
+            "approval request not found or ledger not configured", 404
+        )
+    return _json(
+        {"grant_id": grant.grant_id, "capability": grant.capability}
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -98,17 +110,17 @@ async def handle_reject(request: web.Request) -> web.Response:
     except Exception:
         return _error("invalid JSON body")
 
-    request_id = body.get("request_id", "").strip()
-    reason = body.get("reason", "rejected by human")
-    if not request_id:
-        return _error("request_id is required")
+    try:
+        validated = RejectionRequest.model_validate(body)
+    except ValidationError as exc:
+        return _validation_error(exc)
 
     try:
         rejection = await reg.reject(
             run_id,
-            request_id,
-            reason=reason,
-            rejected_by=body.get("rejected_by", "human"),
+            validated.request_id,
+            reason=validated.reason,
+            rejected_by=validated.rejected_by,
         )
     except KeyError:
         return _error(f"run not found: {run_id}", 404)
@@ -117,8 +129,12 @@ async def handle_reject(request: web.Request) -> web.Response:
         return _error(str(exc), 500)
 
     if rejection is None:
-        return _error("approval request not found or ledger not configured", 404)
-    return _json({"request_id": rejection.request_id, "reason": rejection.reason})
+        return _error(
+            "approval request not found or ledger not configured", 404
+        )
+    return _json(
+        {"request_id": rejection.request_id, "reason": rejection.reason}
+    )
 
 
 # ---------------------------------------------------------------------------

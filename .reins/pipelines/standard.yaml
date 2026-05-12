@@ -1,0 +1,26 @@
+name: standard
+description: Standard development pipeline with planning, implementation, and review stages
+stages:
+  - name: plan
+    type: implement
+    agent_type: planner
+    prompt_template: "Plan the implementation for: {objective}"
+    timeout_seconds: 600
+    context_files:
+      - ".reins/spec/standing-law.md"
+
+  - name: implement
+    type: implement
+    agent_type: coder
+    prompt_template: "Implement the plan: {objective}"
+    depends_on: [plan]
+    timeout_seconds: 3600
+    context_files:
+      - ".reins/spec/standing-law.md"
+
+  - name: verify
+    type: verify
+    agent_type: reviewer
+    prompt_template: "Review the implementation for correctness and completeness: {objective}"
+    depends_on: [implement]
+    timeout_seconds: 600

@@ -30,6 +30,7 @@ from reins.kernel.intent.envelope import (
     CommandProposal,
     IntentEnvelope,
 )
+from reins.kernel.lifecycle_advisor import RunLifecycleAdvisor
 from reins.kernel.reducer.reducer import REDUCER_VERSION, reduce
 from reins.kernel.reducer.state import RunState, StateSnapshot
 from reins.kernel.routing.router import route
@@ -75,6 +76,8 @@ class RunOrchestrator:
         spec_projection: ContextSpecProjection | None = None,
         task_manager: TaskManager | None = None,
         task_projection: TaskContextProjection | None = None,
+        # Reins v3.0: Intelligence layer
+        advisor: RunLifecycleAdvisor | None = None,
     ) -> None:
         self._builder = EventBuilder(journal)
         self._journal = journal
@@ -89,6 +92,7 @@ class RunOrchestrator:
         self._dehydrator = DehydrationMachine()
         self._state: RunState | None = None
         self._intent: IntentEnvelope | None = None
+        self._advisor = advisor
 
         # Reins v2.0: Context injection components
         self._context_v2 = context_compiler_v2
@@ -114,6 +118,14 @@ class RunOrchestrator:
             intent.objective,
         )
         self.apply_event(event)
+
+        if self._advisor is not None:
+            self._advisor_context = await self._advisor.on_intake(
+                intent.objective, {"run_id": intent.run_id}
+            )
+        else:
+            self._advisor_context: dict[str, Any] = {}
+
         return self._state
 
     # ------------------------------------------------------------------
@@ -478,6 +490,15 @@ class RunOrchestrator:
         )
         self.apply_event(event)
 
+        if self._advisor is not None:
+            exec_success = observation.get("exit_code", 0) == 0
+            await self._advisor.on_after_execution(
+                task_id=run_id,
+                domain=self._advisor_context.get("domain", "general"),
+                success=exec_success,
+                context={"command_id": command.command_id},
+            )
+
         outcome = None
         if evaluate and self._evaluation_runner is not None:
             outcome = await self._evaluation_runner.evaluate(
@@ -521,6 +542,23 @@ class RunOrchestrator:
                 failing = next(
                     (result for result in outcome.results if not result.passed), None
                 )
+
+                repair_hints = list(failing.repair_hints) if failing is not None else []
+                if self._advisor is not None:
+                    advisor_guidance = await self._advisor.on_repair_required(
+                        failure={
+                            "failure_class": outcome.failure_class.value,
+                            "details": str(failing.details) if failing else "",
+                        },
+                        context={
+                            "task_id": self._state.run_id,
+                            "domain": self._advisor_context.get("domain", "general"),
+                            "command_id": command.command_id,
+                        },
+                    )
+                    if advisor_guidance.get("action"):
+                        repair_hints.append(f"intel:{advisor_guidance['action']}")
+
                 repair_event = await self._builder.emit_repair_required(
                     run_id,
                     failing.eval_id if failing is not None else command.command_id,
@@ -528,7 +566,7 @@ class RunOrchestrator:
                     outcome.repair_route or "change_hypothesis",
                     bool(outcome.retry_allowed),
                     str(failing.details) if failing is not None else "",
-                    list(failing.repair_hints) if failing is not None else [],
+                    repair_hints,
                     command_id=command.command_id,
                 )
                 self.apply_event(repair_event)
@@ -615,6 +653,13 @@ class RunOrchestrator:
         assert self._state is not None
         event = await self._builder.emit_run_completed(self._state.run_id)
         self.apply_event(event)
+
+        if self._advisor is not None:
+            await self._advisor.on_complete(
+                self._state.run_id,
+                self._advisor_context.get("domain", "general"),
+            )
+
         return self._state
 
     async def fail(self, failure_class: FailureClass, reason: str) -> RunState:
@@ -626,6 +671,14 @@ class RunOrchestrator:
             reason,
         )
         self.apply_event(event)
+
+        if self._advisor is not None:
+            await self._advisor.on_fail(
+                self._state.run_id,
+                self._advisor_context.get("domain", "general"),
+                reason,
+            )
+
         return self._state
 
     async def abort(self, reason: str) -> RunState:

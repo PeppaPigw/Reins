@@ -41,6 +41,18 @@ class WorktreeConfig:
 
 
 @dataclass
+class IntelligenceConfig:
+    """Intelligence layer configuration."""
+
+    enabled: bool = False
+    mode: str = "observe"  # observe | advise | enforce
+    store_path: str = ".reins/intelligence"
+    retrospective_adapter: bool = True
+    max_retries: int = 3
+    escalation_threshold: int = 3
+
+
+@dataclass
 class ReinsConfig:
     """Project-level `.reins/config.yaml` settings."""
 
@@ -50,6 +62,7 @@ class ReinsConfig:
     default_package: str | None = None
     hooks: HooksConfig = field(default_factory=HooksConfig)
     update: UpdateConfig = field(default_factory=UpdateConfig)
+    intelligence: IntelligenceConfig = field(default_factory=IntelligenceConfig)
 
     def to_dict(self) -> dict[str, Any]:
         """Return a YAML-serializable mapping."""

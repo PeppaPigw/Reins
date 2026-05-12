@@ -23,7 +23,9 @@ from pathlib import Path
 from typing import Any
 
 from aiohttp import web
+from pydantic import ValidationError
 
+from reins.api.models import CreateRunRequest, ErrorResponse
 from reins.api.registry import RunRegistry
 
 log = logging.getLogger(__name__)
@@ -41,6 +43,16 @@ def _error(msg: str, status: int = 400) -> web.Response:
     return _json({"error": msg}, status)
 
 
+def _validation_error(exc: ValidationError) -> web.Response:
+    """Convert a pydantic ValidationError to a structured 422 response."""
+    body = ErrorResponse(
+        error="Validation failed",
+        code="VALIDATION_ERROR",
+        details={"errors": exc.errors()},
+    )
+    return _json(body.model_dump(), status=422)
+
+
 # ---------------------------------------------------------------------------
 # POST /runs
 # ---------------------------------------------------------------------------
@@ -52,16 +64,17 @@ async def handle_create_run(request: web.Request) -> web.Response:
     except Exception:
         return _error("invalid JSON body")
 
-    objective = body.get("objective", "").strip()
-    if not objective:
-        return _error("objective is required")
+    try:
+        validated = CreateRunRequest.model_validate(body)
+    except ValidationError as exc:
+        return _validation_error(exc)
 
     try:
         state = await reg.create_run(
-            objective=objective,
-            issuer=body.get("issuer", "user"),
-            constraints=body.get("constraints", []),
-            requested_capabilities=body.get("requested_capabilities", []),
+            objective=validated.objective,
+            issuer=validated.issuer,
+            constraints=validated.constraints,
+            requested_capabilities=validated.requested_capabilities,
         )
     except Exception as exc:
         log.exception("create_run failed")

@@ -97,6 +97,18 @@ class TaskExporter:
             task_dir: Task directory
             task: Task metadata
         """
+        task_json_path = task_dir / "task.json"
+
+        existing_metadata: dict = {}
+        if task_json_path.exists():
+            try:
+                existing = json.loads(task_json_path.read_text(encoding="utf-8"))
+                existing_metadata = existing.get("metadata", {})
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        merged_metadata = {**existing_metadata, **task.metadata}
+
         task_json = {
             "task_id": task.task_id,
             "title": task.title,
@@ -112,12 +124,11 @@ class TaskExporter:
             "started_at": task.started_at.isoformat() if task.started_at else None,
             "completed_at": task.completed_at.isoformat() if task.completed_at else None,
             "parent_task_id": task.parent_task_id,
-            "metadata": task.metadata,
+            "metadata": merged_metadata,
         }
-        if "assigned_to" in task.metadata:
-            task_json["assigned_to"] = task.metadata["assigned_to"]
+        if "assigned_to" in merged_metadata:
+            task_json["assigned_to"] = merged_metadata["assigned_to"]
 
-        task_json_path = task_dir / "task.json"
         with open(task_json_path, "w", encoding="utf-8") as f:
             json.dump(task_json, f, indent=2, ensure_ascii=False)
 

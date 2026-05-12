@@ -11,6 +11,7 @@ from typing import AsyncIterator
 import aiofiles  # type: ignore[import-untyped]
 
 from reins.kernel.event.envelope import EventEnvelope, event_from_dict, event_to_dict
+from reins.kernel.event.schema.registry import UpcasterRegistry, get_default_registry
 from reins.serde import parse_dt
 
 TimestampLike = datetime | str
@@ -27,8 +28,9 @@ def normalize_timestamp(value: TimestampLike) -> datetime:
 
 
 class EventJournal:
-    def __init__(self, path: Path | str) -> None:
+    def __init__(self, path: Path | str, registry: UpcasterRegistry | None = None) -> None:
         self.path = Path(path)
+        self._registry = registry or get_default_registry()
         self._is_directory = self.path.is_dir() or (
             not self.path.exists() and not self.path.suffix
         )
@@ -134,6 +136,11 @@ class EventJournal:
                     continue
                 event = event_from_dict(json.loads(line))
                 if event.run_id == run_id and event.seq >= from_seq:
+                    if self._registry.needs_upcast(event.type, event.schema_version):
+                        payload, new_version = self._registry.upcast(
+                            event.type, event.payload, event.schema_version
+                        )
+                        event = replace(event, payload=payload, schema_version=new_version)
                     yield event
 
     async def read_until(

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from reins import __version__ as REINS_VERSION
 from reins.kernel.types import FailureClass, GrantRef, HandleRef, RunStatus
 
 
@@ -52,6 +53,8 @@ class RunState:
     active_task_id: str | None = None
     """Currently active task ID"""
 
+    reins_version: str = field(default_factory=lambda: REINS_VERSION)
+
 
 @dataclass
 class StateSnapshot:
@@ -79,3 +82,5 @@ class StateSnapshot:
 
     # Reins v2.0: Task management state
     active_task_id: str | None = None
+
+    reins_version: str = field(default_factory=lambda: REINS_VERSION)

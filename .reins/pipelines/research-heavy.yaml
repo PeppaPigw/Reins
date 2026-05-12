@@ -1,0 +1,31 @@
+name: research-heavy
+description: Pipeline emphasizing research and exploration before implementation
+stages:
+  - name: research
+    type: research
+    agent_type: researcher
+    prompt_template: "Research approaches and prior art for: {objective}"
+    timeout_seconds: 900
+    context_files:
+      - ".reins/spec/standing-law.md"
+
+  - name: synthesize
+    type: implement
+    agent_type: planner
+    prompt_template: "Synthesize research findings into an implementation plan: {objective}"
+    depends_on: [research]
+    timeout_seconds: 600
+
+  - name: implement
+    type: implement
+    agent_type: coder
+    prompt_template: "Implement based on research and plan: {objective}"
+    depends_on: [synthesize]
+    timeout_seconds: 3600
+
+  - name: verify
+    type: verify
+    agent_type: reviewer
+    prompt_template: "Verify implementation matches research findings: {objective}"
+    depends_on: [implement]
+    timeout_seconds: 600

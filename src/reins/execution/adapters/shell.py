@@ -38,7 +38,10 @@ class SandboxedShellAdapter(Adapter):
         # Build restricted environment
         env = self._build_sandboxed_env(session["env"], command.get("env", {}))
 
-        cmd_list = shlex.split(cmd) if isinstance(cmd, str) else list(cmd)
+        if isinstance(cmd, str) and any(op in cmd for op in ("&&", "||", "|", ";", ">", "<")):
+            cmd_list = ["sh", "-c", cmd]
+        else:
+            cmd_list = shlex.split(cmd) if isinstance(cmd, str) else list(cmd)
         process = await asyncio.create_subprocess_exec(
             *cmd_list,
             cwd=cwd,
