@@ -13,8 +13,8 @@ Reins must surpass Trellis across all 14 engineering dimensions. This roadmap de
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Kernel Hardening** - Event schema versioning, snapshot integrity, reducer correctness, journal compaction
-- [ ] **Phase 2: Security & Policy** - Shell safety, network binding, policy enforcement, TLS validation, threat model, input validation
-- [ ] **Phase 3: Platform Parity** - Template engine, hash-based staleness detection, 14+ platform configurators with contract tests
+- [x] **Phase 2: Security & Policy** - Shell safety, network binding, policy enforcement, TLS validation, threat model, input validation
+- [x] **Phase 3: Platform Parity** - Template engine, hash-based staleness detection, 14+ platform configurators with contract tests
 - [ ] **Phase 4: Workflow UX & Skills** - Session breadcrumbs, brainstorm/planning skill, break-loop, spec updates, task pointer, state machine
 - [ ] **Phase 5: Migration & Packaging** - Two-layer migrations, pip install, PyPI publishing, semver, CLI init/update/uninstall
 - [ ] **Phase 6: Performance & Observability** - Thread pool offload, event loop monitoring, compilation speed, startup time, benchmarks, structured logging, tracing, time-travel
@@ -53,9 +53,9 @@ Plans:
   5. Malformed CLI args, API payloads, and config files produce structured validation errors (not crashes)
 **Plans:** 3 plans
 Plans:
-- [ ] 02-01-PLAN.md — Shell exec hardening + API localhost binding (SEC-01, SEC-02)
-- [ ] 02-02-PLAN.md — TLS validation + policy bypass audit (SEC-03, SEC-04)
-- [ ] 02-03-PLAN.md — Input validation + formal threat model (SEC-05, SEC-06)
+- [x] 02-01-PLAN.md — Shell exec hardening + API localhost binding (SEC-01, SEC-02)
+- [x] 02-02-PLAN.md — TLS validation + policy bypass audit (SEC-03, SEC-04)
+- [x] 02-03-PLAN.md — Input validation + formal threat model (SEC-05, SEC-06)
 
 ### Phase 3: Platform Parity
 **Goal**: Reins generates valid, tested configurations for 14+ AI coding platforms
@@ -67,7 +67,11 @@ Plans:
   3. Tier 1 platforms (Claude, Cursor, Codex) pass full integration test suites in CI
   4. All 14+ platforms produce configs that pass contract validation against their respective schemas
   5. Hook generation outputs the correct language (Python or JS) per platform convention
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [x] 03-01-PLAN.md — Declarative platform descriptors + template engine + reins update command (PLAT-01, PLAT-02)
+- [x] 03-02-PLAN.md — Contract validation schemas + hook generation (PLAT-04, PLAT-05, PLAT-07)
+- [x] 03-03-PLAN.md — Tier 1 integration tests + full contract test run (PLAT-03, PLAT-06, TEST-04)
 
 ### Phase 4: Workflow UX & Skills
 **Goal**: Users experience guided, stateful workflows that capture and reuse knowledge
@@ -79,7 +83,11 @@ Plans:
   3. Break-loop triggers a retrospective that captures learnings into the knowledge base
   4. Task learnings flow back into the spec system via the spec-update workflow
   5. Workflow transitions follow a configurable state machine (planning -> in_progress -> checking -> done)
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [x] 04-01-PLAN.md — Workflow state machine + breadcrumb injection (WF-01, WF-05)
+- [x] 04-02-PLAN.md — Brainstorm skill + break-loop detection (WF-02, WF-03)
+- [x] 04-03-PLAN.md — Retrospective capture + spec-update learning flow (WF-03, WF-04)
 
 ### Phase 5: Migration & Packaging
 **Goal**: Users install Reins with a single pip command and upgrade without data loss
@@ -91,7 +99,11 @@ Plans:
   3. `reins update` migrates both user configs and internal state with rollback on failure
   4. `reins uninstall` removes all generated files cleanly
   5. PyPI releases happen automatically via CI with semver tags and generated changelogs
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [x] 05-01-PLAN.md — Uninstall command + packaging manifest (PKG-04, PKG-01)
+- [x] 05-02-PLAN.md — CI/CD pipelines + version/changelog management (PKG-05, PKG-06, PKG-07)
+- [x] 05-03-PLAN.md — Lifecycle integration tests + migration rollback tests (PKG-02, PKG-03, TEST-03)
 
 ### Phase 6: Performance & Observability
 **Goal**: Reins is measurably faster than Trellis and provides full execution visibility
@@ -103,7 +115,11 @@ Plans:
   3. Event loop starvation is detected and reported before it impacts user experience
   4. Any past execution point can be replayed via time-travel debugging from the event journal
   5. Traces propagate OpenTelemetry-compatible context across all layers with correlation IDs
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [x] 06-01-PLAN.md — Performance benchmarks + CLI startup optimization (PERF-01, PERF-02, PERF-04)
+- [x] 06-02-PLAN.md — OpenTelemetry tracing + correlation ID propagation (OBS-01, OBS-02, OBS-03, OBS-05)
+- [x] 06-03-PLAN.md — Event loop monitoring + time-travel CLI command (PERF-03, OBS-04)
 
 ### Phase 7: Integrations
 **Goal**: Reins orchestrates agent work through external issue trackers and communication tools
@@ -114,7 +130,11 @@ Plans:
   2. PR creation, issue tracking, and status checks work end-to-end with GitHub
   3. Slack receives notifications and approval requests with actionable responses
   4. Linear issues stay synchronized with Reins task state bidirectionally
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [x] 07-01-PLAN.md — GitHub PR creation + status checks + webhook triggers (INT-01, INT-02)
+- [x] 07-02-PLAN.md — Slack approval flow + interactive messages (INT-03)
+- [x] 07-03-PLAN.md — Linear bidirectional sync + integration trigger tests (INT-01, INT-04)
 
 ### Phase 8: Documentation & Developer Experience
 **Goal**: A new user goes from zero to productive in under 5 minutes with clear guidance at every step
@@ -126,7 +146,11 @@ Plans:
   3. `reins doctor` diagnoses common setup issues and suggests fixes
   4. Shell completion works for all commands in bash, zsh, and fish
   5. Every error message includes a recovery suggestion and documentation link
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [x] 08-01-PLAN.md — Doctor command + structured error messages (DX-01, DX-04, DX-05)
+- [x] 08-02-PLAN.md — API reference generation + quick-start guide (DOC-01, DOC-02)
+- [x] 08-03-PLAN.md — Architecture guide + error recovery tests (DOC-03, DOC-04, DX-05)
 
 ### Phase 9: Testing Infrastructure & CI
 **Goal**: The test suite provides >90% coverage with property-based, integration, and replay tests running across platforms
@@ -138,7 +162,11 @@ Plans:
   3. CI infrastructure runs integration tests against real git repositories on every push
   4. Historical event replay fixtures pass, proving backward compatibility across versions
   5. CI matrix runs green on Python 3.12+ across Linux and macOS
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [x] 09-01-PLAN.md — Coverage measurement + coverage gate in CI (TEST-01, TEST-06)
+- [x] 09-02-PLAN.md — Historical replay fixtures + expanded property tests (TEST-02, TEST-05)
+- [x] 09-03-PLAN.md — Integration test infrastructure + CI matrix validation (TEST-03, TEST-06)
 
 ## Progress
 
@@ -149,11 +177,11 @@ Note: Phase 6 can begin after Phase 1 (parallel with 2-5). Phase 9 can begin aft
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Kernel Hardening | 4/4 | Complete | 2026-05-11 |
-| 2. Security & Policy | 0/3 | In Progress | - |
-| 3. Platform Parity | 0/TBD | Not started | - |
-| 4. Workflow UX & Skills | 0/TBD | Not started | - |
-| 5. Migration & Packaging | 0/TBD | Not started | - |
-| 6. Performance & Observability | 0/TBD | Not started | - |
-| 7. Integrations | 0/TBD | Not started | - |
-| 8. Documentation & Developer Experience | 0/TBD | Not started | - |
-| 9. Testing Infrastructure & CI | 0/TBD | Not started | - |
+| 2. Security & Policy | 3/3 | Complete | 2026-05-11 |
+| 3. Platform Parity | 3/3 | Complete | 2026-05-11 |
+| 4. Workflow UX & Skills | 3/3 | Complete | 2026-05-11 |
+| 5. Migration & Packaging | 3/3 | Complete | 2026-05-11 |
+| 6. Performance & Observability | 3/3 | Complete | 2026-05-11 |
+| 7. Integrations | 3/3 | Complete | 2026-05-11 |
+| 8. Documentation & Developer Experience | 3/3 | Complete | 2026-05-11 |
+| 9. Testing Infrastructure & CI | 3/3 | Complete | 2026-05-11 |

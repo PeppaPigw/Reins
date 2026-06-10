@@ -1,21 +1,21 @@
 <!-- TRELLIS:START -->
-
 # Trellis Instructions
 
 These instructions are for AI assistants working in this project.
 
-Use the `/trellis:start` command when starting a new session to:
+This project is managed by Trellis. The working knowledge you need lives under `.trellis/`:
 
-- Initialize your developer identity
-- Understand current project context
-- Read relevant guidelines
+- `.trellis/workflow.md` — development phases, when to create tasks, skill routing
+- `.trellis/spec/` — package- and layer-scoped coding guidelines (read before writing code in a given layer)
+- `.trellis/workspace/` — per-developer journals and session traces
+- `.trellis/tasks/` — active and archived tasks (PRDs, research, jsonl context)
 
-Use `@/.trellis/` to learn:
+If a Trellis command is available on your platform (e.g. `/trellis:finish-work`, `/trellis:continue`), prefer it over manual steps. Not every platform exposes every command.
 
-- Development workflow (`workflow.md`)
-- Project structure guidelines (`spec/`)
-- Developer workspace (`workspace/`)
+If you're using Codex or another agent-capable tool, additional project-scoped helpers may live in:
+- `.agents/skills/` — reusable Trellis skills
+- `.codex/agents/` — optional custom subagents
 
-Keep this managed block so 'trellis update' can refresh the instructions.
+Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a future `trellis update`.
 
 <!-- TRELLIS:END -->

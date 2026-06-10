@@ -26,6 +26,8 @@ from reins.api.command_routes import (
     handle_resume,
     handle_submit_command,
 )
+from reins.api.control_plane import ControlPlane
+from reins.api.middleware import create_api_middlewares
 from reins.api.routes import (
     handle_create_run,
     handle_get_run,
@@ -38,9 +40,13 @@ log = logging.getLogger("reins.api")
 
 def build_app(state_dir: Path | None = None) -> web.Application:
     """Construct and return the aiohttp Application."""
-    app = web.Application()
+    control_plane = ControlPlane(state_dir=state_dir)
+    app = web.Application(middlewares=create_api_middlewares(control_plane.policy_engine))
     registry = RunRegistry(base_dir=state_dir)
     app["registry"] = registry
+    app["control_plane"] = control_plane
+    app["metrics"] = control_plane.metrics
+    app["event_stream"] = control_plane.stream
 
     app.router.add_post("/runs", handle_create_run)
     app.router.add_get("/runs/{id}", handle_get_run)
@@ -50,6 +56,7 @@ def build_app(state_dir: Path | None = None) -> web.Application:
     app.router.add_post("/runs/{id}/reject", handle_reject)
     app.router.add_post("/runs/{id}/abort", handle_abort)
     app.router.add_post("/runs/{id}/resume", handle_resume)
+    control_plane.add_routes(app)
 
     return app
 
@@ -59,9 +66,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Reins agent kernel HTTP API")
     parser.add_argument("--host", default=os.getenv("REINS_HOST", "127.0.0.1"))
-    parser.add_argument(
-        "--port", type=int, default=int(os.getenv("REINS_PORT", "8000"))
-    )
+    parser.add_argument("--port", type=int, default=int(os.getenv("REINS_PORT", "8000")))
     parser.add_argument(
         "--state-dir",
         default=os.getenv("REINS_STATE_DIR", ".reins_state"),
